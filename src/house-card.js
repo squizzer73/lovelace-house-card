@@ -78,17 +78,17 @@ class HouseCard extends LitElement {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 12px 16px 44px;
+        padding: 12px 16px 32px;
         min-height: 0;
-        perspective: 1400px;
-        perspective-origin: 40% -40%;
+        perspective: 2400px;
+        perspective-origin: 50% 30%;
         overflow: visible;
       }
 
       /*
-       * Floor plane. aspect-ratio is set inline from floor.cols/rows so
-       * the grid proportions are always correct. width:100% fills the
-       * wrapper horizontally; height derives from aspect-ratio.
+       * Floor plane. Gentle tilt only — rotateX gives the overhead angle,
+       * rotateY just barely shows the left wall face.
+       * A wide perspective (2400px) keeps distortion minimal.
        */
       .grid-canvas {
         position: relative;
@@ -97,7 +97,7 @@ class HouseCard extends LitElement {
         background: rgba(10, 11, 20, 0.95);
         border-radius: 2px;
         transform-style: preserve-3d;
-        transform: rotateX(40deg) rotateY(12deg);
+        transform: rotateX(35deg) rotateY(6deg);
         overflow: visible;
       }
 
@@ -131,7 +131,7 @@ class HouseCard extends LitElement {
         left: 0;
         right: 0;
         bottom: -1px;
-        height: 36px;
+        height: 18px;
         transform-origin: center bottom;
         transform: rotateX(-90deg);
         border-left: 1px solid rgba(255,255,255,0.03);
@@ -148,7 +148,7 @@ class HouseCard extends LitElement {
         top: 0;
         left: -1px;
         bottom: 0;
-        width: 36px;
+        width: 18px;
         transform-origin: left center;
         transform: rotateY(-90deg);
         border-top: 1px solid rgba(255,255,255,0.03);
