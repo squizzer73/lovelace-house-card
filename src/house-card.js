@@ -29,7 +29,6 @@ class HouseCard extends LitElement {
       .card-header {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         padding: 12px 16px 0;
         font-size: 1.1rem;
         font-weight: 500;
@@ -69,170 +68,153 @@ class HouseCard extends LitElement {
       }
 
       /*
-       * Perspective wrapper: the "eye" sits above-left.
-       * overflow: visible lets walls extend below/left of the canvas.
+       * Perspective container. overflow:visible so 3D walls aren't clipped.
+       * Extra bottom padding so front walls clear the ha-card boundary.
        */
       .grid-wrapper {
         box-sizing: border-box;
         flex: 1;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px 20px 48px 32px;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 18px 22px 56px 26px;
         min-height: 0;
-        perspective: 1400px;
-        perspective-origin: 38% -20%;
+        perspective: 1300px;
+        perspective-origin: 38% -15%;
         overflow: visible;
       }
 
       /*
-       * The floor plane: rotated to create the perspective view.
-       * rotateX tilts the top away; rotateY shows the left face.
-       * transform-style: preserve-3d passes 3D context to children.
+       * Floor plane — rotated to give overhead-left perspective.
+       * No aspect-ratio here; flex:1 fills the wrapper so the card
+       * uses all available space.
        */
       .grid-canvas {
         position: relative;
-        width: 100%;
         flex: 1;
+        width: 100%;
         min-height: 80px;
-        background: rgba(16, 18, 32, 0.55);
+        background: rgba(10, 11, 20, 0.95);
         border-radius: 2px;
         transform-style: preserve-3d;
-        transform: rotateX(48deg) rotateY(14deg);
+        transform: rotateX(52deg) rotateY(18deg);
         overflow: visible;
       }
 
-      /* ── Room 3D wrapper (owns position + preserve-3d) ── */
+      /* ── Room 3D wrapper (owns absolute position + preserve-3d) ── */
       .room-3d {
         position: absolute;
         box-sizing: border-box;
         transform-style: preserve-3d;
       }
 
-      /* ── Top face (the floor/ceiling we look down onto) ── */
+      /* ── Top face (what you look down onto) ── */
       .room-face {
         position: absolute;
         inset: 0;
-        border-radius: 2px;
         overflow: hidden;
-        cursor: default;
-        border: 1px solid rgba(255,255,255,0.2);
-        background-image: linear-gradient(155deg, rgba(255,255,255,0.07) 0%, rgba(0,0,0,0.07) 100%);
+        border: 1px solid rgba(75, 80, 110, 0.38);
+        background: rgba(30, 33, 52, 0.93);
       }
 
       .room-face.light-on {
-        background-image: linear-gradient(155deg, rgba(255,235,100,0.52) 0%, rgba(255,185,30,0.24) 100%);
-        border-color: rgba(255,215,60,0.45);
-        box-shadow: inset 0 0 24px rgba(255,215,60,0.18), 0 0 10px rgba(255,200,50,0.12);
-      }
-
-      .room-face.occupied {
-        border-color: rgba(80,200,120,0.42);
+        background: linear-gradient(150deg, rgba(90, 66, 14, 0.97), rgba(46, 31, 5, 0.99));
+        border-color: rgba(175, 130, 32, 0.32);
       }
 
       /*
-       * Front wall: sits at the bottom edge of the top face,
-       * pivots 90° around the bottom edge to stand perpendicular to it.
-       * This wall faces the viewer in the 3D scene.
+       * Front wall: pivots 90° from bottom edge toward viewer.
+       * Height drives how "tall" the walls look.
        */
       .room-wall-front {
         position: absolute;
         left: 0;
         right: 0;
         bottom: -1px;
-        height: 22px;
+        height: 36px;
         transform-origin: center bottom;
         transform: rotateX(-90deg);
-        border-left: 1px solid rgba(255,255,255,0.04);
-        border-right: 1px solid rgba(0,0,0,0.45);
-        border-bottom: 2px solid rgba(0,0,0,0.6);
+        border-left: 1px solid rgba(255,255,255,0.03);
+        border-right: 1px solid rgba(0,0,0,0.52);
+        border-bottom: 2px solid rgba(0,0,0,0.75);
       }
 
       /*
-       * Left wall: sits at the left edge of the top face,
-       * pivots 90° around the left edge to stand perpendicular.
-       * This wall is partially visible when rotateY > 0.
+       * Left wall: pivots 90° from left edge toward viewer
+       * (visible due to rotateY on the canvas).
        */
       .room-wall-left {
         position: absolute;
         top: 0;
         left: -1px;
         bottom: 0;
-        width: 22px;
+        width: 36px;
         transform-origin: left center;
         transform: rotateY(-90deg);
-        border-top: 1px solid rgba(255,255,255,0.04);
-        border-bottom: 1px solid rgba(0,0,0,0.4);
-        border-left: 2px solid rgba(0,0,0,0.55);
+        border-top: 1px solid rgba(255,255,255,0.03);
+        border-bottom: 1px solid rgba(0,0,0,0.48);
+        border-left: 2px solid rgba(0,0,0,0.7);
       }
 
-      /* ── Sensor info (top-left of face) ── */
-      .room-info {
+      /* ── Floating info card (inside top face) ── */
+      .room-info-card {
         position: absolute;
-        top: 5px;
-        left: 6px;
+        top: 7px;
+        left: 7px;
+        background: rgba(5, 6, 14, 0.78);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 10px;
+        padding: 7px 10px 6px;
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: 4px;
+        max-width: calc(100% - 14px);
         pointer-events: none;
+        backdrop-filter: blur(4px);
       }
 
-      .room-temp {
+      .info-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .info-room-name {
         font-size: 0.82rem;
-        font-weight: 700;
-        color: rgba(255,255,255,0.95);
-        text-shadow: 0 1px 4px rgba(0,0,0,0.85);
-        line-height: 1;
-      }
-
-      .room-humidity {
-        font-size: 0.72rem;
         font-weight: 600;
-        color: rgba(140,210,255,0.92);
-        text-shadow: 0 1px 4px rgba(0,0,0,0.85);
-        line-height: 1;
-      }
-
-      /* ── Occupancy dot (top-right of face) ── */
-      .occupancy-dot {
-        position: absolute;
-        top: 6px;
-        right: 6px;
-        width: 11px;
-        height: 11px;
-        border-radius: 50%;
-        background: #4cdf80;
-        box-shadow: 0 0 0 2px rgba(76,223,128,0.3), 0 0 10px rgba(76,223,128,0.75);
-        animation: occ-pulse 2s ease-in-out infinite;
-        pointer-events: none;
-      }
-
-      @keyframes occ-pulse {
-        0%, 100% {
-          box-shadow: 0 0 0 2px rgba(76,223,128,0.3), 0 0 10px rgba(76,223,128,0.75);
-        }
-        50% {
-          box-shadow: 0 0 0 4px rgba(76,223,128,0.15), 0 0 18px rgba(76,223,128,0.95);
-        }
-      }
-
-      /* ── Room name (bottom gradient overlay on top face) ── */
-      .room-label {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 6px 6px 5px;
-        font-size: 0.72rem;
-        font-weight: 600;
-        color: rgba(255,255,255,0.93);
-        text-align: center;
-        text-shadow: 0 1px 4px rgba(0,0,0,0.95);
+        color: rgba(255,255,255,0.96);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%);
-        pointer-events: none;
+      }
+
+      .info-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.77rem;
+        color: rgba(255,255,255,0.88);
+        line-height: 1.3;
+      }
+
+      /* ── Legend bar ── */
+      .legend {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        padding: 7px 16px 8px;
+        font-size: 0.72rem;
+        color: var(--secondary-text-color);
+        flex-shrink: 0;
+        border-top: 1px solid var(--divider-color, rgba(255,255,255,0.08));
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
       }
 
       .no-floor {
@@ -305,7 +287,7 @@ class HouseCard extends LitElement {
 
     return html`
       <div class="grid-wrapper">
-        <div class="grid-canvas" style="aspect-ratio: ${floor.cols} / ${floor.rows};">
+        <div class="grid-canvas">
           ${rooms.map(room => this._renderRoom(room, cellWPct, cellHPct))}
         </div>
       </div>
@@ -313,47 +295,88 @@ class HouseCard extends LitElement {
   }
 
   _renderRoom(room, cellWPct, cellHPct) {
-    const lightOn = room.entities?.light ? this._isLightOn(room.entities.light) : false;
-    const occupied = room.entities?.occupancy ? this._isOccupied(room.entities.occupancy) : false;
-    const temp = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
-    const humidity = room.entities?.humidity ? this._getHumidity(room.entities.humidity) : null;
+    const lightOn  = room.entities?.light      ? this._isLightOn(room.entities.light)           : false;
+    const occupied = room.entities?.occupancy  ? this._isOccupied(room.entities.occupancy)       : false;
+    const temp     = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
+    const humidity = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)       : null;
 
-    const left = `${room.col * cellWPct}%`;
-    const top = `${room.row * cellHPct}%`;
-    const width = `${room.width * cellWPct}%`;
-    const height = `${room.height * cellHPct}%`;
+    // Small inset gap so dark canvas shows through as wall separation.
+    const gap = 0.6;
+    const left   = `${room.col   * cellWPct + gap}%`;
+    const top    = `${room.row   * cellHPct + gap}%`;
+    const width  = `${room.width * cellWPct - gap * 2}%`;
+    const height = `${room.height * cellHPct - gap * 2}%`;
 
-    const faceClasses = [
-      'room-face',
-      lightOn ? 'light-on' : '',
-      occupied ? 'occupied' : '',
-    ].filter(Boolean).join(' ');
-
-    // Wall shading: front wall is medium-dark; left wall is darkest (more shadow).
-    // Light-on rooms bleed warm amber onto the walls.
+    const faceClass = `room-face${lightOn ? ' light-on' : ''}`;
     const c = room.color;
-    const frontWallStyle = lightOn
-      ? 'background: linear-gradient(to bottom, rgba(165,115,12,0.52), rgba(85,52,6,0.78));'
-      : `background: linear-gradient(to bottom, ${c}22 0%, ${c}08 100%), linear-gradient(to bottom, rgba(28,32,55,0.82), rgba(14,17,38,0.95));`;
 
-    const leftWallStyle = lightOn
-      ? 'background: linear-gradient(to right, rgba(75,48,5,0.82), rgba(140,95,10,0.5));'
-      : `background: linear-gradient(to right, ${c}18 0%, ${c}06 100%), linear-gradient(to right, rgba(14,17,38,0.92), rgba(22,26,54,0.78));`;
+    // Walls tinted with room colour; front wall lighter than left (standard arch shading).
+    const frontWall = lightOn
+      ? 'background:linear-gradient(to bottom,rgba(138,98,8,0.60),rgba(72,48,4,0.88));'
+      : `background:linear-gradient(to bottom,${c}1c 0%,${c}06 100%),linear-gradient(to bottom,rgba(20,23,40,0.90),rgba(8,10,22,0.97));`;
+
+    const leftWall = lightOn
+      ? 'background:linear-gradient(to right,rgba(60,42,3,0.92),rgba(115,85,7,0.58));'
+      : `background:linear-gradient(to right,${c}15 0%,${c}05 100%),linear-gradient(to right,rgba(8,10,22,0.97),rgba(16,18,34,0.90));`;
+
+    const lightColor  = lightOn  ? '#ffd700'               : 'rgba(135,135,148,0.55)';
+    const personColor = occupied ? '#4cdf80'               : 'rgba(135,135,148,0.45)';
+    const tempColor   = 'rgba(255,168,75,0.92)';
+    const humColor    = 'rgba(85,178,255,0.92)';
 
     return html`
-      <div class="room-3d" style="left:${left}; top:${top}; width:${width}; height:${height};">
-        <div class="${faceClasses}" style="background-color:${c}1a;">
-          ${(temp || humidity) ? html`
-            <div class="room-info">
-              ${temp ? html`<span class="room-temp">${temp}</span>` : ''}
-              ${humidity ? html`<span class="room-humidity">💧 ${humidity}</span>` : ''}
+      <div class="room-3d" style="left:${left};top:${top};width:${width};height:${height};">
+
+        <div class="${faceClass}" style="background-color:${c}0f;">
+
+          <div class="room-info-card">
+
+            <div class="info-header">
+              <ha-icon icon="mdi:lightbulb"
+                style="color:${lightColor};--mdc-icon-size:18px;flex-shrink:0;"></ha-icon>
+              <span class="info-room-name">${room.name}</span>
             </div>
-          ` : ''}
-          ${occupied ? html`<div class="occupancy-dot"></div>` : ''}
-          <div class="room-label">${room.name}</div>
+
+            ${temp ? html`
+              <div class="info-row">
+                <ha-icon icon="mdi:thermometer"
+                  style="color:${tempColor};--mdc-icon-size:16px;flex-shrink:0;"></ha-icon>
+                <span>${temp}</span>
+              </div>` : ''}
+
+            ${humidity ? html`
+              <div class="info-row">
+                <ha-icon icon="mdi:water-percent"
+                  style="color:${humColor};--mdc-icon-size:16px;flex-shrink:0;"></ha-icon>
+                <span>${humidity}</span>
+              </div>` : ''}
+
+            ${room.entities?.occupancy ? html`
+              <div class="info-row">
+                <ha-icon icon="mdi:account"
+                  style="color:${personColor};--mdc-icon-size:16px;flex-shrink:0;"></ha-icon>
+              </div>` : ''}
+
+          </div>
         </div>
-        <div class="room-wall-front" style="${frontWallStyle}"></div>
-        <div class="room-wall-left" style="${leftWallStyle}"></div>
+
+        <div class="room-wall-front" style="${frontWall}"></div>
+        <div class="room-wall-left"  style="${leftWall}"></div>
+
+      </div>
+    `;
+  }
+
+  _renderLegend() {
+    const i = (icon, color) =>
+      html`<ha-icon icon="${icon}" style="color:${color};--mdc-icon-size:14px;"></ha-icon>`;
+
+    return html`
+      <div class="legend">
+        <div class="legend-item">${i('mdi:lightbulb','#ffd700')}<span>Light On</span></div>
+        <div class="legend-item">${i('mdi:lightbulb','rgba(135,135,148,0.55)')}<span>Light Off</span></div>
+        <div class="legend-item">${i('mdi:account','#4cdf80')}<span>Occupied</span></div>
+        <div class="legend-item">${i('mdi:account','rgba(135,135,148,0.45)')}<span>Unoccupied</span></div>
       </div>
     `;
   }
@@ -368,8 +391,7 @@ class HouseCard extends LitElement {
     return html`
       <ha-card>
         ${this._config.title ? html`
-          <div class="card-header">${this._config.title}</div>
-        ` : ''}
+          <div class="card-header">${this._config.title}</div>` : ''}
 
         ${showTabs ? html`
           <div class="floor-tabs">
@@ -379,13 +401,11 @@ class HouseCard extends LitElement {
                 @click=${() => { this._activeFloor = i; }}
               >${floor.name || `Floor ${i + 1}`}</button>
             `)}
-          </div>
-        ` : ''}
+          </div>` : ''}
 
         ${floors.length === 0
           ? html`<div class="no-floor">No floors configured. Click the edit button to get started.</div>`
-          : this._renderFloor(activeFloor)
-        }
+          : html`${this._renderFloor(activeFloor)}${this._renderLegend()}`}
       </ha-card>
     `;
   }
