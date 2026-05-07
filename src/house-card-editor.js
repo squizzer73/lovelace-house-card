@@ -833,22 +833,21 @@ class HouseCardEditor extends LitElement {
       </div>
 
       <div class="section-title" style="margin-bottom:8px;">Entity Bindings</div>
-      <p class="hint" style="margin-bottom:12px;">Paste entity IDs from your Home Assistant. Leave blank to disable that indicator.</p>
 
       ${[
-        { key: 'light', label: 'Light', hint: 'e.g. light.lounge or light.ground_floor_lounge', placeholder: 'light.lounge' },
-        { key: 'occupancy', label: 'Occupancy', hint: 'e.g. binary_sensor.lounge_motion', placeholder: 'binary_sensor.lounge_motion' },
-        { key: 'temperature', label: 'Temperature', hint: 'e.g. sensor.lounge_temperature', placeholder: 'sensor.lounge_temperature' },
-      ].map(({ key, label, hint, placeholder }) => html`
+        { key: 'light', label: 'Light', domains: ['light'] },
+        { key: 'occupancy', label: 'Occupancy', domains: ['binary_sensor'] },
+        { key: 'temperature', label: 'Temperature', domains: ['sensor'] },
+      ].map(({ key, label, domains }) => html`
         <div class="entity-row">
           <div class="entity-type-label">${label}</div>
-          <input
-            type="text"
+          <ha-entity-picker
+            .hass=${this.hass}
             .value=${room.entities?.[key] || ''}
-            placeholder="${placeholder}"
-            @input=${(e) => this._updateRoomEntity(room.id, key, e.target.value.trim())}
-          />
-          <div class="hint">${hint}</div>
+            .includeDomains=${domains}
+            allow-custom-entity
+            @value-changed=${(e) => this._updateRoomEntity(room.id, key, e.detail.value)}
+          ></ha-entity-picker>
         </div>
       `)}
     `;
