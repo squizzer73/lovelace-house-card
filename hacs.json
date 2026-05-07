@@ -1,6 +1,7 @@
 {
   "name": "House Card",
   "description": "A visual house floorplan card for Home Assistant with grid-based room layout and entity state display.",
+  "filename": "house-card.js",
   "render_readme": true,
   "domains": [],
   "iot_class": "local_polling",
