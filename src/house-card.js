@@ -68,36 +68,36 @@ class HouseCard extends LitElement {
       }
 
       /*
-       * Perspective container. overflow:visible so 3D walls aren't clipped.
-       * Extra bottom padding so front walls clear the ha-card boundary.
+       * Perspective container.
+       * Centres the canvas and leaves room below for front walls.
        */
       .grid-wrapper {
         box-sizing: border-box;
         flex: 1;
         display: flex;
         flex-direction: column;
-        align-items: stretch;
-        padding: 18px 22px 56px 26px;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 16px 44px;
         min-height: 0;
-        perspective: 1300px;
-        perspective-origin: 38% -15%;
+        perspective: 1400px;
+        perspective-origin: 40% -40%;
         overflow: visible;
       }
 
       /*
-       * Floor plane — rotated to give overhead-left perspective.
-       * No aspect-ratio here; flex:1 fills the wrapper so the card
-       * uses all available space.
+       * Floor plane. aspect-ratio is set inline from floor.cols/rows so
+       * the grid proportions are always correct. width:100% fills the
+       * wrapper horizontally; height derives from aspect-ratio.
        */
       .grid-canvas {
         position: relative;
-        flex: 1;
         width: 100%;
         min-height: 80px;
         background: rgba(10, 11, 20, 0.95);
         border-radius: 2px;
         transform-style: preserve-3d;
-        transform: rotateX(52deg) rotateY(18deg);
+        transform: rotateX(40deg) rotateY(12deg);
         overflow: visible;
       }
 
@@ -287,7 +287,7 @@ class HouseCard extends LitElement {
 
     return html`
       <div class="grid-wrapper">
-        <div class="grid-canvas">
+        <div class="grid-canvas" style="aspect-ratio:${floor.cols}/${floor.rows};">
           ${rooms.map(room => this._renderRoom(room, cellWPct, cellHPct))}
         </div>
       </div>
