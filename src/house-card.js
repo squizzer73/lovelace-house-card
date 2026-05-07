@@ -32,10 +32,6 @@ import './house-card-editor.js';
  * }
  */
 
-const LIGHT_ON_COLOR = 'rgba(255, 220, 80, 0.35)';
-const LIGHT_OFF_COLOR = 'rgba(255, 255, 255, 0.04)';
-const OCCUPIED_COLOR = 'rgba(80, 200, 120, 0.25)';
-const ROOM_BORDER = 'rgba(255,255,255,0.15)';
 
 class HouseCard extends LitElement {
   static get properties() {
@@ -111,7 +107,7 @@ class HouseCard extends LitElement {
       .room-cell {
         position: absolute;
         box-sizing: border-box;
-        border: 1px solid ${ROOM_BORDER};
+        border: 1px solid rgba(255,255,255,0.15);
         border-radius: 4px;
         overflow: hidden;
         transition: background 0.4s ease;
@@ -119,12 +115,12 @@ class HouseCard extends LitElement {
       }
 
       .room-cell.light-on {
-        background: ${LIGHT_ON_COLOR};
+        background: rgba(255, 220, 80, 0.35);
         box-shadow: inset 0 0 12px rgba(255, 220, 80, 0.2);
       }
 
       .room-cell.light-off {
-        background: ${LIGHT_OFF_COLOR};
+        background: rgba(255, 255, 255, 0.04);
       }
 
       .room-cell.occupied {
