@@ -49,6 +49,8 @@ Rooms use percentage-based positioning derived from `col/cols` and `row/rows`. T
 
 ### Key implementation patterns
 
+**Lit `css` template constraints:** Never interpolate plain JS strings into Lit's `css` tagged template — it throws a runtime error (`Value passed to 'css' function must be a 'css' function result`), which silently prevents `customElements.define` from being reached. Inline colour/value literals directly, or wrap with `unsafeCSS()`.
+
 **Config-changed pattern:** The editor fires `config-changed` on every mutation (add/delete floor, add/delete room, update entity). The config object is always deep-cloned before mutation to avoid reference issues. This is the standard HA editor contract — HA catches the event and updates dashboard YAML in real time.
 
 **Overlap detection:** On drag complete, the new rectangle is checked against all existing rooms using AABB intersection before prompting for a name. Overlapping drags are silently discarded.
