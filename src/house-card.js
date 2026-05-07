@@ -68,56 +68,105 @@ class HouseCard extends LitElement {
         background: rgba(255,255,255,0.05);
       }
 
+      /*
+       * Perspective wrapper: the "eye" sits above-left.
+       * overflow: visible lets walls extend below/left of the canvas.
+       */
       .grid-wrapper {
-        padding: 12px;
         box-sizing: border-box;
         flex: 1;
         display: flex;
-        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px 20px 48px 32px;
         min-height: 0;
+        perspective: 1400px;
+        perspective-origin: 38% -20%;
+        overflow: visible;
       }
 
+      /*
+       * The floor plane: rotated to create the perspective view.
+       * rotateX tilts the top away; rotateY shows the left face.
+       * transform-style: preserve-3d passes 3D context to children.
+       */
       .grid-canvas {
         position: relative;
         width: 100%;
         flex: 1;
         min-height: 80px;
+        background: rgba(16, 18, 32, 0.55);
+        border-radius: 2px;
+        transform-style: preserve-3d;
+        transform: rotateX(48deg) rotateY(14deg);
+        overflow: visible;
       }
 
-      /* ── Room cell — 3D raised tile ── */
-
-      .room-cell {
+      /* ── Room 3D wrapper (owns position + preserve-3d) ── */
+      .room-3d {
         position: absolute;
         box-sizing: border-box;
-        border-radius: 6px;
+        transform-style: preserve-3d;
+      }
+
+      /* ── Top face (the floor/ceiling we look down onto) ── */
+      .room-face {
+        position: absolute;
+        inset: 0;
+        border-radius: 2px;
         overflow: hidden;
         cursor: default;
-        transition: box-shadow 0.4s ease;
-        /* Asymmetric borders: bright top/left, dark bottom/right */
-        border-top: 1px solid rgba(255,255,255,0.18);
-        border-left: 1px solid rgba(255,255,255,0.12);
-        border-right: 1px solid rgba(0,0,0,0.28);
-        border-bottom: 1px solid rgba(0,0,0,0.35);
-        /* Drop shadow + inner highlight */
-        box-shadow: 2px 3px 6px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
-        /* Depth gradient on top of inline background-color */
-        background-image: linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(0,0,0,0.1) 100%);
+        border: 1px solid rgba(255,255,255,0.2);
+        background-image: linear-gradient(155deg, rgba(255,255,255,0.07) 0%, rgba(0,0,0,0.07) 100%);
       }
 
-      .room-cell.light-on {
-        background-image: linear-gradient(145deg, rgba(255,235,100,0.48) 0%, rgba(255,185,30,0.22) 100%);
-        box-shadow: 2px 3px 6px rgba(0,0,0,0.45),
-                    inset 0 0 22px rgba(255,220,80,0.18),
-                    0 0 12px rgba(255,200,50,0.14);
+      .room-face.light-on {
+        background-image: linear-gradient(155deg, rgba(255,235,100,0.52) 0%, rgba(255,185,30,0.24) 100%);
+        border-color: rgba(255,215,60,0.45);
+        box-shadow: inset 0 0 24px rgba(255,215,60,0.18), 0 0 10px rgba(255,200,50,0.12);
       }
 
-      .room-cell.occupied {
-        border-top-color: rgba(80,200,120,0.45);
-        border-left-color: rgba(80,200,120,0.35);
+      .room-face.occupied {
+        border-color: rgba(80,200,120,0.42);
       }
 
-      /* ── Sensor info (top-left) ── */
+      /*
+       * Front wall: sits at the bottom edge of the top face,
+       * pivots 90° around the bottom edge to stand perpendicular to it.
+       * This wall faces the viewer in the 3D scene.
+       */
+      .room-wall-front {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -1px;
+        height: 22px;
+        transform-origin: center bottom;
+        transform: rotateX(-90deg);
+        border-left: 1px solid rgba(255,255,255,0.04);
+        border-right: 1px solid rgba(0,0,0,0.45);
+        border-bottom: 2px solid rgba(0,0,0,0.6);
+      }
 
+      /*
+       * Left wall: sits at the left edge of the top face,
+       * pivots 90° around the left edge to stand perpendicular.
+       * This wall is partially visible when rotateY > 0.
+       */
+      .room-wall-left {
+        position: absolute;
+        top: 0;
+        left: -1px;
+        bottom: 0;
+        width: 22px;
+        transform-origin: left center;
+        transform: rotateY(-90deg);
+        border-top: 1px solid rgba(255,255,255,0.04);
+        border-bottom: 1px solid rgba(0,0,0,0.4);
+        border-left: 2px solid rgba(0,0,0,0.55);
+      }
+
+      /* ── Sensor info (top-left of face) ── */
       .room-info {
         position: absolute;
         top: 5px;
@@ -144,8 +193,7 @@ class HouseCard extends LitElement {
         line-height: 1;
       }
 
-      /* ── Occupancy dot (top-right) ── */
-
+      /* ── Occupancy dot (top-right of face) ── */
       .occupancy-dot {
         position: absolute;
         top: 6px;
@@ -168,8 +216,7 @@ class HouseCard extends LitElement {
         }
       }
 
-      /* ── Room name (bottom gradient overlay) ── */
-
+      /* ── Room name (bottom gradient overlay on top face) ── */
       .room-label {
         position: absolute;
         bottom: 0;
@@ -276,25 +323,37 @@ class HouseCard extends LitElement {
     const width = `${room.width * cellWPct}%`;
     const height = `${room.height * cellHPct}%`;
 
-    const classes = [
-      'room-cell',
+    const faceClasses = [
+      'room-face',
       lightOn ? 'light-on' : '',
       occupied ? 'occupied' : '',
     ].filter(Boolean).join(' ');
 
+    // Wall shading: front wall is medium-dark; left wall is darkest (more shadow).
+    // Light-on rooms bleed warm amber onto the walls.
+    const c = room.color;
+    const frontWallStyle = lightOn
+      ? 'background: linear-gradient(to bottom, rgba(165,115,12,0.52), rgba(85,52,6,0.78));'
+      : `background: linear-gradient(to bottom, ${c}22 0%, ${c}08 100%), linear-gradient(to bottom, rgba(28,32,55,0.82), rgba(14,17,38,0.95));`;
+
+    const leftWallStyle = lightOn
+      ? 'background: linear-gradient(to right, rgba(75,48,5,0.82), rgba(140,95,10,0.5));'
+      : `background: linear-gradient(to right, ${c}18 0%, ${c}06 100%), linear-gradient(to right, rgba(14,17,38,0.92), rgba(22,26,54,0.78));`;
+
     return html`
-      <div
-        class="${classes}"
-        style="left:${left}; top:${top}; width:${width}; height:${height}; background-color:${room.color}22;"
-      >
-        ${(temp || humidity) ? html`
-          <div class="room-info">
-            ${temp ? html`<span class="room-temp">${temp}</span>` : ''}
-            ${humidity ? html`<span class="room-humidity">💧 ${humidity}</span>` : ''}
-          </div>
-        ` : ''}
-        ${occupied ? html`<div class="occupancy-dot"></div>` : ''}
-        <div class="room-label">${room.name}</div>
+      <div class="room-3d" style="left:${left}; top:${top}; width:${width}; height:${height};">
+        <div class="${faceClasses}" style="background-color:${c}1a;">
+          ${(temp || humidity) ? html`
+            <div class="room-info">
+              ${temp ? html`<span class="room-temp">${temp}</span>` : ''}
+              ${humidity ? html`<span class="room-humidity">💧 ${humidity}</span>` : ''}
+            </div>
+          ` : ''}
+          ${occupied ? html`<div class="occupancy-dot"></div>` : ''}
+          <div class="room-label">${room.name}</div>
+        </div>
+        <div class="room-wall-front" style="${frontWallStyle}"></div>
+        <div class="room-wall-left" style="${leftWallStyle}"></div>
       </div>
     `;
   }
