@@ -801,7 +801,7 @@ class HouseCardEditor extends LitElement {
               <div style="flex:1;font-size:0.88rem;">${room.name}</div>
               <div style="font-size:0.75rem;color:var(--secondary-text-color);">
                 ${room.width}×${room.height}
-                ${room.entities?.light || room.entities?.occupancy || room.entities?.temperature ? '· entities configured' : '· no entities'}
+                ${room.entities?.light || room.entities?.occupancy || room.entities?.temperature || room.entities?.humidity ? '· entities configured' : '· no entities'}
               </div>
             </div>
           `)}
@@ -838,6 +838,7 @@ class HouseCardEditor extends LitElement {
         { key: 'light', label: 'Light', domains: ['light'] },
         { key: 'occupancy', label: 'Occupancy', domains: ['binary_sensor'] },
         { key: 'temperature', label: 'Temperature', domains: ['sensor'] },
+        { key: 'humidity', label: 'Humidity', domains: ['sensor'] },
       ].map(({ key, label, domains }) => html`
         <div class="entity-row">
           <div class="entity-type-label">${label}</div>

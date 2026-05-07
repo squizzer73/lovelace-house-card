@@ -1,38 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import './house-card-editor.js';
 
-/**
- * House Card - Visual floorplan card for Home Assistant
- *
- * Config schema:
- * {
- *   type: 'custom:house-card',
- *   title: 'My House',
- *   floors: [
- *     {
- *       id: 'ground',
- *       name: 'Ground Floor',
- *       cols: 8,
- *       rows: 6,
- *       rooms: [
- *         {
- *           id: 'lounge',
- *           name: 'Lounge',
- *           col: 0, row: 0, width: 3, height: 2,
- *           color: '#4a90d9',
- *           entities: {
- *             light: 'light.lounge',
- *             occupancy: 'binary_sensor.lounge_motion',
- *             temperature: 'sensor.lounge_temperature',
- *           }
- *         }
- *       ]
- *     }
- *   ]
- * }
- */
-
-
 class HouseCard extends LitElement {
   static get properties() {
     return {
@@ -46,12 +14,16 @@ class HouseCard extends LitElement {
     return css`
       :host {
         display: block;
+        height: 100%;
         font-family: var(--primary-font-family, sans-serif);
       }
 
       ha-card {
         overflow: hidden;
         padding: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
       }
 
       .card-header {
@@ -62,6 +34,7 @@ class HouseCard extends LitElement {
         font-size: 1.1rem;
         font-weight: 500;
         color: var(--primary-text-color);
+        flex-shrink: 0;
       }
 
       .floor-tabs {
@@ -69,6 +42,7 @@ class HouseCard extends LitElement {
         gap: 4px;
         padding: 10px 16px 0;
         border-bottom: 1px solid var(--divider-color, rgba(255,255,255,0.1));
+        flex-shrink: 0;
       }
 
       .floor-tab {
@@ -95,84 +69,123 @@ class HouseCard extends LitElement {
       }
 
       .grid-wrapper {
-        padding: 16px;
+        padding: 12px;
         box-sizing: border-box;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
       }
 
       .grid-canvas {
         position: relative;
         width: 100%;
+        flex: 1;
+        min-height: 80px;
       }
+
+      /* ── Room cell — 3D raised tile ── */
 
       .room-cell {
         position: absolute;
         box-sizing: border-box;
-        border: 1px solid rgba(255,255,255,0.15);
-        border-radius: 4px;
+        border-radius: 6px;
         overflow: hidden;
-        transition: background 0.4s ease;
         cursor: default;
+        transition: box-shadow 0.4s ease;
+        /* Asymmetric borders: bright top/left, dark bottom/right */
+        border-top: 1px solid rgba(255,255,255,0.18);
+        border-left: 1px solid rgba(255,255,255,0.12);
+        border-right: 1px solid rgba(0,0,0,0.28);
+        border-bottom: 1px solid rgba(0,0,0,0.35);
+        /* Drop shadow + inner highlight */
+        box-shadow: 2px 3px 6px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+        /* Depth gradient on top of inline background-color */
+        background-image: linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(0,0,0,0.1) 100%);
       }
 
       .room-cell.light-on {
-        background: rgba(255, 220, 80, 0.35);
-        box-shadow: inset 0 0 12px rgba(255, 220, 80, 0.2);
-      }
-
-      .room-cell.light-off {
-        background: rgba(255, 255, 255, 0.04);
+        background-image: linear-gradient(145deg, rgba(255,235,100,0.48) 0%, rgba(255,185,30,0.22) 100%);
+        box-shadow: 2px 3px 6px rgba(0,0,0,0.45),
+                    inset 0 0 22px rgba(255,220,80,0.18),
+                    0 0 12px rgba(255,200,50,0.14);
       }
 
       .room-cell.occupied {
-        border-color: rgba(80, 200, 120, 0.5);
+        border-top-color: rgba(80,200,120,0.45);
+        border-left-color: rgba(80,200,120,0.35);
       }
 
-      .room-label {
+      /* ── Sensor info (top-left) ── */
+
+      .room-info {
         position: absolute;
-        bottom: 4px;
+        top: 5px;
         left: 6px;
-        font-size: 0.7rem;
-        font-weight: 500;
-        color: var(--primary-text-color);
-        opacity: 0.8;
-        pointer-events: none;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: calc(100% - 8px);
-      }
-
-      .room-icons {
-        position: absolute;
-        top: 4px;
-        right: 4px;
         display: flex;
         flex-direction: column;
-        align-items: flex-end;
-        gap: 2px;
+        gap: 3px;
+        pointer-events: none;
       }
 
       .room-temp {
-        position: absolute;
-        top: 4px;
-        left: 6px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        color: var(--primary-text-color);
-        opacity: 0.85;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.95);
+        text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+        line-height: 1;
       }
+
+      .room-humidity {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: rgba(140,210,255,0.92);
+        text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+        line-height: 1;
+      }
+
+      /* ── Occupancy dot (top-right) ── */
 
       .occupancy-dot {
-        width: 8px;
-        height: 8px;
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 11px;
+        height: 11px;
         border-radius: 50%;
-        background: #50c878;
-        box-shadow: 0 0 6px rgba(80, 200, 120, 0.8);
+        background: #4cdf80;
+        box-shadow: 0 0 0 2px rgba(76,223,128,0.3), 0 0 10px rgba(76,223,128,0.75);
+        animation: occ-pulse 2s ease-in-out infinite;
+        pointer-events: none;
       }
 
-      .light-icon {
-        color: #ffdc50;
-        font-size: 0.8rem;
+      @keyframes occ-pulse {
+        0%, 100% {
+          box-shadow: 0 0 0 2px rgba(76,223,128,0.3), 0 0 10px rgba(76,223,128,0.75);
+        }
+        50% {
+          box-shadow: 0 0 0 4px rgba(76,223,128,0.15), 0 0 18px rgba(76,223,128,0.95);
+        }
+      }
+
+      /* ── Room name (bottom gradient overlay) ── */
+
+      .room-label {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 6px 6px 5px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: rgba(255,255,255,0.93);
+        text-align: center;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.95);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%);
+        pointer-events: none;
       }
 
       .no-floor {
@@ -201,15 +214,7 @@ class HouseCard extends LitElement {
   static getStubConfig() {
     return {
       title: 'My House',
-      floors: [
-        {
-          id: 'ground',
-          name: 'Ground Floor',
-          cols: 8,
-          rows: 6,
-          rooms: [],
-        },
-      ],
+      floors: [{ id: 'ground', name: 'Ground Floor', cols: 8, rows: 6, rooms: [] }],
     };
   }
 
@@ -219,13 +224,11 @@ class HouseCard extends LitElement {
   }
 
   _isLightOn(entityId) {
-    const state = this._getEntityState(entityId);
-    return state?.state === 'on';
+    return this._getEntityState(entityId)?.state === 'on';
   }
 
   _isOccupied(entityId) {
-    const state = this._getEntityState(entityId);
-    return state?.state === 'on';
+    return this._getEntityState(entityId)?.state === 'on';
   }
 
   _getTemperature(entityId) {
@@ -237,24 +240,25 @@ class HouseCard extends LitElement {
     return `${val.toFixed(1)}${unit}`;
   }
 
+  _getHumidity(entityId) {
+    const state = this._getEntityState(entityId);
+    if (!state) return null;
+    const val = parseFloat(state.state);
+    if (isNaN(val)) return null;
+    return `${Math.round(val)}%`;
+  }
+
   _renderFloor(floor) {
-    if (!floor || !floor.cols || !floor.rows) return html`<div class="no-floor">Floor not configured</div>`;
-
+    if (!floor || !floor.cols || !floor.rows) {
+      return html`<div class="no-floor">Floor not configured</div>`;
+    }
     const rooms = floor.rooms || [];
-    const cols = floor.cols;
-    const rows = floor.rows;
-
-    // We render the grid as a percentage-based positioned canvas
-    // Each cell = (100/cols)% wide, (100/rows)% tall
-    const cellWPct = 100 / cols;
-    const cellHPct = 100 / rows;
-
-    // Use a padding-bottom trick to maintain aspect ratio
-    const aspectPct = (rows / cols) * 100;
+    const cellWPct = 100 / floor.cols;
+    const cellHPct = 100 / floor.rows;
 
     return html`
       <div class="grid-wrapper">
-        <div class="grid-canvas" style="padding-bottom: ${aspectPct}%; position: relative;">
+        <div class="grid-canvas" style="aspect-ratio: ${floor.cols} / ${floor.rows};">
           ${rooms.map(room => this._renderRoom(room, cellWPct, cellHPct))}
         </div>
       </div>
@@ -265,6 +269,7 @@ class HouseCard extends LitElement {
     const lightOn = room.entities?.light ? this._isLightOn(room.entities.light) : false;
     const occupied = room.entities?.occupancy ? this._isOccupied(room.entities.occupancy) : false;
     const temp = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
+    const humidity = room.entities?.humidity ? this._getHumidity(room.entities.humidity) : null;
 
     const left = `${room.col * cellWPct}%`;
     const top = `${room.row * cellHPct}%`;
@@ -273,20 +278,22 @@ class HouseCard extends LitElement {
 
     const classes = [
       'room-cell',
-      lightOn ? 'light-on' : 'light-off',
+      lightOn ? 'light-on' : '',
       occupied ? 'occupied' : '',
     ].filter(Boolean).join(' ');
 
     return html`
       <div
         class="${classes}"
-        style="left:${left}; top:${top}; width:${width}; height:${height};"
+        style="left:${left}; top:${top}; width:${width}; height:${height}; background-color:${room.color}22;"
       >
-        ${temp ? html`<div class="room-temp">${temp}</div>` : ''}
-        <div class="room-icons">
-          ${occupied ? html`<div class="occupancy-dot"></div>` : ''}
-          ${lightOn ? html`<span class="light-icon">💡</span>` : ''}
-        </div>
+        ${(temp || humidity) ? html`
+          <div class="room-info">
+            ${temp ? html`<span class="room-temp">${temp}</span>` : ''}
+            ${humidity ? html`<span class="room-humidity">💧 ${humidity}</span>` : ''}
+          </div>
+        ` : ''}
+        ${occupied ? html`<div class="occupancy-dot"></div>` : ''}
         <div class="room-label">${room.name}</div>
       </div>
     `;
