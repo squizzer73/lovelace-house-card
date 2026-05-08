@@ -2,6 +2,37 @@ import { LitElement, html, css, svg } from 'lit';
 import { ROOM_TYPE_ICONS } from './constants.js';
 import './house-card-editor.js';
 
+// ── Pure projection functions ────────────────────────────────────────────────
+// Maps plan-space (x, y, z) to screen-space (sx, sy).
+// x  = horizontal plan coordinate (col × cellSize, grows right)
+// y  = depth plan coordinate (row × cellSize, grows "into" the scene)
+// z  = vertical height above floor plane (grows upward → decreases sy)
+// Increasing y shifts the point down-left in screen space, giving the
+// classic axonometric "looking from above and to the right" appearance.
+function project(x, y, z, opts) {
+  const tilt  = opts?.tilt  ?? 0.55;
+  const shear = opts?.shear ?? 0.15;
+  return {
+    sx: x - y * shear,
+    sy: y * tilt - z,
+  };
+}
+
+// Returns the four floor-plane corners of a room in screen space:
+// [top-left, top-right, bottom-right, bottom-left]
+function projectRoom(room, z, opts) {
+  const x0 = room.col   * 100;
+  const y0 = room.row   * 100;
+  const x1 = x0 + room.width  * 100;
+  const y1 = y0 + room.height * 100;
+  return [
+    project(x0, y0, z, opts),
+    project(x1, y0, z, opts),
+    project(x1, y1, z, opts),
+    project(x0, y1, z, opts),
+  ];
+}
+
 class HouseCard extends LitElement {
   static get properties() {
     return {
@@ -9,6 +40,7 @@ class HouseCard extends LitElement {
       _hass: { type: Object },
       _activeFloor: { type: Number },
       _activeHeatmapMode: { type: String },
+      _activeLayout: { type: String },
     };
   }
 
@@ -350,6 +382,25 @@ class HouseCard extends LitElement {
         white-space: nowrap;
       }
 
+      /* ── Axonometric / dollhouse view ── */
+      .axo-wrapper {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 16px 16px;
+        overflow: visible;
+        min-height: 0;
+      }
+
+      .axo-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+        overflow: visible;
+      }
+
       .no-floor {
         padding: 32px 16px;
         text-align: center;
@@ -365,8 +416,7 @@ class HouseCard extends LitElement {
     this._hass = null;
     this._activeFloor = 0;
     this._activeHeatmapMode = null;
-    // Unique suffix for SVG filter IDs — avoids collisions between card instances.
-    this._uid = Math.random().toString(36).slice(2, 8);
+    this._activeLayout = null;
     // Tap / long-press state (non-reactive — no re-render needed)
     this._pressRoom = null;
     this._pressTimer = null;
@@ -505,6 +555,29 @@ class HouseCard extends LitElement {
     this._activeHeatmapMode = modes[(modes.indexOf(current) + 1) % modes.length];
   }
 
+  // ── Layout (flat / axonometric) helpers ──────────────────────────────────
+
+  _getActiveLayout() {
+    return this._activeLayout ?? (this._config.display?.layout ?? 'flat');
+  }
+
+  _cycleLayout() {
+    this._activeLayout = this._getActiveLayout() === 'flat' ? 'axonometric' : 'flat';
+  }
+
+  _renderLayoutToggle() {
+    const isAxo = this._getActiveLayout() === 'axonometric';
+    return html`
+      <button class="heatmap-toggle"
+              @click=${this._cycleLayout}
+              title="${isAxo ? 'Switch to flat plan view' : 'Switch to dollhouse view'}">
+        <ha-icon icon="${isAxo ? 'mdi:floor-plan' : 'mdi:cube-outline'}"
+                 style="color:${isAxo ? '#a78bfa' : 'rgba(135,135,148,0.55)'};--mdc-icon-size:20px;">
+        </ha-icon>
+      </button>
+    `;
+  }
+
   _renderHeatmapToggle() {
     const mode = this._getHeatmapMode();
     const modeMap = {
@@ -579,7 +652,6 @@ class HouseCard extends LitElement {
     const showHum  = mode === 'humidity'    || mode === 'combined';
     const range    = floor.temperature_range || this._config.temperature_range || [16, 26];
     const humFloor = this._config.humidity_floor ?? 50;
-    const filterId = `thermalBlur_${this._uid}`;
 
     const enriched = (floor.rooms || [])
       .filter(r => r.heatmap !== false)
@@ -594,14 +666,9 @@ class HouseCard extends LitElement {
            viewBox="0 0 ${floor.cols * 100} ${floor.rows * 100}"
            preserveAspectRatio="none"
            xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="${filterId}" x="-25%" y="-25%" width="150%" height="150%">
-            <feGaussianBlur stdDeviation="42"/>
-          </filter>
-        </defs>
 
         ${showTemp ? svg`
-          <g filter="url(#${filterId})">
+          <g style="filter: blur(50px);">
             ${enriched.map(r => svg`
               <rect
                 x=${r.col * 100} y=${r.row * 100}
@@ -640,6 +707,88 @@ class HouseCard extends LitElement {
             <span>Humidity</span>
           </div>` : ''}
       </div>
+    `;
+  }
+
+  // ── Axonometric rendering — Phase 1 ──────────────────────────────────────
+
+  _projectionOpts() {
+    const d = this._config.display || {};
+    return {
+      tilt:  d.tilt  ?? 0.55,
+      shear: d.shear ?? 0.15,
+    };
+  }
+
+  // Computes a tight viewBox that encloses all projected floor geometry + padding.
+  _computeAxoViewBox(floor, z, opts) {
+    const w = floor.cols * 100;
+    const h = floor.rows * 100;
+    const corners = [
+      project(0, 0, z, opts),
+      project(w, 0, z, opts),
+      project(w, h, z, opts),
+      project(0, h, z, opts),
+    ];
+    const pad = 20;
+    const minX = Math.min(...corners.map(p => p.sx)) - pad;
+    const minY = Math.min(...corners.map(p => p.sy)) - pad;
+    const maxX = Math.max(...corners.map(p => p.sx)) + pad;
+    const maxY = Math.max(...corners.map(p => p.sy)) + pad;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  _renderAxonometric(floor) {
+    if (!floor || !floor.cols || !floor.rows) {
+      return html`<div class="no-floor">Floor not configured.</div>`;
+    }
+    const opts = this._projectionOpts();
+    const vb   = this._computeAxoViewBox(floor, 0, opts);
+    const ar   = (vb.w / vb.h).toFixed(4);
+
+    return html`
+      <div class="axo-wrapper">
+        <svg class="axo-svg"
+             viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}"
+             preserveAspectRatio="xMidYMid meet"
+             style="aspect-ratio: ${ar};">
+          ${this._renderFloorAxo(floor, 0, opts)}
+        </svg>
+      </div>
+    `;
+  }
+
+  _renderFloorAxo(floor, z, opts) {
+    const w = floor.cols * 100;
+    const h = floor.rows * 100;
+    const corners = [
+      project(0, 0, z, opts),
+      project(w, 0, z, opts),
+      project(w, h, z, opts),
+      project(0, h, z, opts),
+    ];
+    const floorPts = corners.map(p => `${p.sx.toFixed(2)},${p.sy.toFixed(2)}`).join(' ');
+
+    return svg`
+      <g class="floor-axo">
+        <polygon points="${floorPts}"
+                 fill="rgba(10,11,20,0.95)"
+                 stroke="rgba(255,255,255,0.08)"
+                 stroke-width="1"/>
+        ${(floor.rooms || []).map(room => this._renderRoomAxo(room, z, opts))}
+      </g>
+    `;
+  }
+
+  _renderRoomAxo(room, z, opts) {
+    const corners = projectRoom(room, z, opts);
+    const pts = corners.map(p => `${p.sx.toFixed(2)},${p.sy.toFixed(2)}`).join(' ');
+    const c = room.color || '#4a90d9';
+    return svg`
+      <polygon points="${pts}"
+               fill="${c}1a"
+               stroke="${c}99"
+               stroke-width="0.8"/>
     `;
   }
 
@@ -785,14 +934,16 @@ class HouseCard extends LitElement {
   render() {
     if (!this._config) return html``;
 
-    const floors = this._config.floors || [];
+    const layout      = this._getActiveLayout();
+    const floors      = this._config.floors || [];
     const activeFloor = floors[this._activeFloor];
-    const showTabs = floors.length > 1;
+    const showTabs    = floors.length > 1;
 
     return html`
       <ha-card>
         <div class="card-header">
           <span class="card-title">${this._config.title || ''}</span>
+          ${this._renderLayoutToggle()}
           ${this._renderHeatmapToggle()}
         </div>
 
@@ -808,11 +959,13 @@ class HouseCard extends LitElement {
 
         ${floors.length === 0
           ? html`<div class="no-floor">No floors configured. Click the edit button to get started.</div>`
-          : html`
-            ${this._renderFloor(activeFloor)}
-            ${this._renderHeatmapLegend(activeFloor)}
-            ${this._renderLegend()}
-          `}
+          : layout === 'axonometric'
+            ? this._renderAxonometric(activeFloor)
+            : html`
+              ${this._renderFloor(activeFloor)}
+              ${this._renderHeatmapLegend(activeFloor)}
+              ${this._renderLegend()}
+            `}
       </ha-card>
     `;
   }
