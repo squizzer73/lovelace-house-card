@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit';
+import { ROOM_TYPE_LABELS } from './constants.js';
 
 /**
  * House Card Editor
@@ -608,6 +609,18 @@ class HouseCardEditor extends LitElement {
     this.requestUpdate();
   }
 
+  _updateRoomType(roomId, roomType) {
+    const floor = this._getActiveFloor();
+    const floors = [...(this._config.floors || [])];
+    floors[this._activeFloorIdx] = {
+      ...floor,
+      rooms: (floor.rooms || []).map(r => r.id === roomId ? { ...r, room_type: roomType || undefined } : r),
+    };
+    this._config = { ...this._config, floors };
+    this._fireConfigChanged();
+    this.requestUpdate();
+  }
+
   _updateRoomName(roomId, name) {
     const floor = this._getActiveFloor();
     const floors = [...(this._config.floors || [])];
@@ -842,13 +855,26 @@ class HouseCardEditor extends LitElement {
         <div class="section-title">${room.name}</div>
       </div>
 
-      <div class="form-field" style="margin-bottom:16px;">
+      <div class="form-field" style="margin-bottom:12px;">
         <label class="form-label">Room Name</label>
         <input
           type="text"
           .value=${room.name}
           @input=${(e) => this._updateRoomName(room.id, e.target.value)}
         />
+      </div>
+
+      <div class="form-field" style="margin-bottom:16px;">
+        <label class="form-label">Room Type</label>
+        <select
+          .value=${room.room_type || ''}
+          @change=${(e) => this._updateRoomType(room.id, e.target.value)}
+        >
+          <option value="">— None —</option>
+          ${Object.entries(ROOM_TYPE_LABELS).map(([key, label]) => html`
+            <option value="${key}" ?selected=${room.room_type === key}>${label}</option>
+          `)}
+        </select>
       </div>
 
       <div class="section-title" style="margin-bottom:8px;">Entity Bindings</div>

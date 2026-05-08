@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit';
+import { ROOM_TYPE_ICONS } from './constants.js';
 import './house-card-editor.js';
 
 class HouseCard extends LitElement {
@@ -67,10 +68,6 @@ class HouseCard extends LitElement {
         background: rgba(255,255,255,0.05);
       }
 
-      /*
-       * Perspective container.
-       * Centres the canvas and leaves room below for front walls.
-       */
       .grid-wrapper {
         box-sizing: border-box;
         flex: 1;
@@ -85,11 +82,6 @@ class HouseCard extends LitElement {
         overflow: visible;
       }
 
-      /*
-       * Floor plane. Gentle tilt only — rotateX gives the overhead angle,
-       * rotateY just barely shows the left wall face.
-       * A wide perspective (2400px) keeps distortion minimal.
-       */
       .grid-canvas {
         position: relative;
         width: 100%;
@@ -101,20 +93,29 @@ class HouseCard extends LitElement {
         overflow: visible;
       }
 
-      /* ── Room 3D wrapper (owns absolute position + preserve-3d) ── */
+      /* ── Room 3D wrapper ── */
       .room-3d {
         position: absolute;
         box-sizing: border-box;
         transform-style: preserve-3d;
       }
 
-      /* ── Top face (what you look down onto) ── */
+      /* ── Top face ── */
       .room-face {
         position: absolute;
         inset: 0;
         overflow: hidden;
         border: 1px solid rgba(75, 80, 110, 0.38);
         background: rgba(30, 33, 52, 0.93);
+        /*
+         * Smooth the light-spill glow and background colour transitions.
+         * box-shadow transition animates the glow in/out over 400ms.
+         */
+        transition: box-shadow 0.4s ease, background 0.4s ease;
+        /* Prevent browser long-press context menu on touch devices */
+        touch-action: none;
+        user-select: none;
+        -webkit-touch-callout: none;
       }
 
       .room-face.light-on {
@@ -122,10 +123,22 @@ class HouseCard extends LitElement {
         border-color: rgba(175, 130, 32, 0.32);
       }
 
-      /*
-       * Front wall: pivots 90° from bottom edge toward viewer.
-       * Height drives how "tall" the walls look.
-       */
+      .room-face.interactive {
+        cursor: pointer;
+      }
+
+      /* ── Room type icon — large semi-transparent watermark ── */
+      .room-type-icon {
+        position: absolute;
+        bottom: 7px;
+        right: 7px;
+        --mdc-icon-size: 42px;
+        opacity: 0.13;
+        pointer-events: none;
+        color: white;
+      }
+
+      /* ── Front wall ── */
       .room-wall-front {
         position: absolute;
         left: 0;
@@ -139,10 +152,7 @@ class HouseCard extends LitElement {
         border-bottom: 2px solid rgba(0,0,0,0.75);
       }
 
-      /*
-       * Left wall: pivots 90° from left edge toward viewer
-       * (visible due to rotateY on the canvas).
-       */
+      /* ── Left wall ── */
       .room-wall-left {
         position: absolute;
         top: 0;
@@ -156,7 +166,7 @@ class HouseCard extends LitElement {
         border-left: 2px solid rgba(0,0,0,0.7);
       }
 
-      /* ── Floating info card (inside top face) ── */
+      /* ── Floating info card ── */
       .room-info-card {
         position: absolute;
         top: 7px;
@@ -226,6 +236,18 @@ class HouseCard extends LitElement {
     `;
   }
 
+  constructor() {
+    super();
+    this._config = null;
+    this._hass = null;
+    this._activeFloor = 0;
+    // Tap / long-press state (non-reactive — no re-render needed)
+    this._pressRoom = null;
+    this._pressTimer = null;
+    this._pressStartX = 0;
+    this._pressStartY = 0;
+  }
+
   setConfig(config) {
     if (!config) throw new Error('Invalid configuration');
     this._config = config;
@@ -246,6 +268,8 @@ class HouseCard extends LitElement {
       floors: [{ id: 'ground', name: 'Ground Floor', cols: 8, rows: 6, rooms: [] }],
     };
   }
+
+  // ── Entity helpers ────────────────────────────────────────────────────────
 
   _getEntityState(entityId) {
     if (!entityId || !this._hass) return null;
@@ -277,6 +301,74 @@ class HouseCard extends LitElement {
     return `${Math.round(val)}%`;
   }
 
+  /**
+   * Returns "r,g,b" from the light's rgb_color attribute when it's on,
+   * or a warm-white fallback, or null if the light is off.
+   */
+  _getLightColor(entityId) {
+    const state = this._getEntityState(entityId);
+    if (!state || state.state !== 'on') return null;
+    const rgb = state.attributes?.rgb_color;
+    if (Array.isArray(rgb) && rgb.length === 3) return `${rgb[0]},${rgb[1]},${rgb[2]}`;
+    return '255,210,150'; // warm white fallback
+  }
+
+  // ── Interaction handlers ──────────────────────────────────────────────────
+
+  _handleRoomTap(room) {
+    if (!this._hass || !room.entities?.light) return;
+    this._hass.callService('light', 'toggle', { entity_id: room.entities.light });
+  }
+
+  _handleRoomLongPress(room) {
+    // Open more-info for the most informative entity on this room.
+    const entityId = room.entities?.light
+      || room.entities?.occupancy
+      || room.entities?.temperature
+      || room.entities?.humidity;
+    if (!entityId) return;
+    this.dispatchEvent(new CustomEvent('hass-more-info', {
+      detail: { entityId },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  _onRoomPointerDown(e, room) {
+    if (e.button !== undefined && e.button !== 0) return;
+    // Prevent browser long-press menu and subsequent click event.
+    e.preventDefault();
+    e.stopPropagation();
+    this._pressRoom = room;
+    this._pressStartX = e.clientX;
+    this._pressStartY = e.clientY;
+    this._pressTimer = setTimeout(() => {
+      this._pressTimer = null;
+      this._pressRoom = null;
+      this._handleRoomLongPress(room);
+    }, 500);
+  }
+
+  _onRoomPointerUp(e) {
+    if (!this._pressRoom) return;
+    const room = this._pressRoom;
+    const dx = Math.abs(e.clientX - this._pressStartX);
+    const dy = Math.abs(e.clientY - this._pressStartY);
+    clearTimeout(this._pressTimer);
+    this._pressTimer = null;
+    this._pressRoom = null;
+    // Only treat as a tap if the pointer didn't move significantly.
+    if (dx < 10 && dy < 10) this._handleRoomTap(room);
+  }
+
+  _onRoomPointerCancel() {
+    clearTimeout(this._pressTimer);
+    this._pressTimer = null;
+    this._pressRoom = null;
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   _renderFloor(floor) {
     if (!floor || !floor.cols || !floor.rows) {
       return html`<div class="no-floor">Floor not configured</div>`;
@@ -295,45 +387,72 @@ class HouseCard extends LitElement {
   }
 
   _renderRoom(room, cellWPct, cellHPct) {
-    const lightOn  = room.entities?.light      ? this._isLightOn(room.entities.light)           : false;
-    const occupied = room.entities?.occupancy  ? this._isOccupied(room.entities.occupancy)       : false;
+    const lightOn  = room.entities?.light       ? this._isLightOn(room.entities.light)           : false;
+    const occupied = room.entities?.occupancy   ? this._isOccupied(room.entities.occupancy)       : false;
     const temp     = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
     const humidity = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)       : null;
+    const lightRgb = room.entities?.light       ? this._getLightColor(room.entities.light)        : null;
 
-    // Small inset gap so dark canvas shows through as wall separation.
     const gap = 0.6;
     const left   = `${room.col   * cellWPct + gap}%`;
     const top    = `${room.row   * cellHPct + gap}%`;
     const width  = `${room.width * cellWPct - gap * 2}%`;
     const height = `${room.height * cellHPct - gap * 2}%`;
 
-    const faceClass = `room-face${lightOn ? ' light-on' : ''}`;
+    const hasAction = !!(room.entities?.light || room.entities?.occupancy
+      || room.entities?.temperature || room.entities?.humidity);
+    const faceClass = [
+      'room-face',
+      lightOn ? 'light-on' : '',
+      hasAction ? 'interactive' : '',
+    ].filter(Boolean).join(' ');
+
     const c = room.color;
 
-    // Walls tinted with room colour; front wall lighter than left (standard arch shading).
-    const frontWall = lightOn
-      ? 'background:linear-gradient(to bottom,rgba(138,98,8,0.60),rgba(72,48,4,0.88));'
+    /*
+     * Light spill: a double box-shadow — tight warm glow plus a wide low-opacity
+     * halo. Colour comes from the light's actual rgb_color attribute so a warm
+     * bedside lamp glows amber while kitchen spots glow cool white.
+     * The CSS transition (400ms) on .room-face animates this smoothly.
+     */
+    const glowStyle = lightRgb
+      ? `box-shadow:0 0 20px 8px rgba(${lightRgb},0.40),0 0 52px 22px rgba(${lightRgb},0.16);`
+      : 'box-shadow:none;';
+
+    // Wall shading — warm tint when lit, dark neutral when off.
+    const frontWall = lightRgb
+      ? `background:linear-gradient(to bottom,rgba(${lightRgb},0.28),rgba(${lightRgb},0.10)),linear-gradient(to bottom,rgba(20,23,40,0.82),rgba(8,10,22,0.96));`
       : `background:linear-gradient(to bottom,${c}1c 0%,${c}06 100%),linear-gradient(to bottom,rgba(20,23,40,0.90),rgba(8,10,22,0.97));`;
 
-    const leftWall = lightOn
-      ? 'background:linear-gradient(to right,rgba(60,42,3,0.92),rgba(115,85,7,0.58));'
+    const leftWall = lightRgb
+      ? `background:linear-gradient(to right,rgba(${lightRgb},0.10),rgba(${lightRgb},0.24)),linear-gradient(to right,rgba(8,10,22,0.97),rgba(16,18,34,0.90));`
       : `background:linear-gradient(to right,${c}15 0%,${c}05 100%),linear-gradient(to right,rgba(8,10,22,0.97),rgba(16,18,34,0.90));`;
 
-    const lightColor  = lightOn  ? '#ffd700'               : 'rgba(135,135,148,0.55)';
-    const personColor = occupied ? '#4cdf80'               : 'rgba(135,135,148,0.45)';
-    const tempColor   = 'rgba(255,168,75,0.92)';
-    const humColor    = 'rgba(85,178,255,0.92)';
+    const lightIconColor  = lightOn  ? '#ffd700'              : 'rgba(135,135,148,0.55)';
+    const personColor     = occupied ? '#4cdf80'              : 'rgba(135,135,148,0.45)';
+    const tempColor       = 'rgba(255,168,75,0.92)';
+    const humColor        = 'rgba(85,178,255,0.92)';
+
+    const roomIcon = ROOM_TYPE_ICONS[room.room_type];
 
     return html`
       <div class="room-3d" style="left:${left};top:${top};width:${width};height:${height};">
 
-        <div class="${faceClass}" style="background-color:${c}0f;">
+        <div
+          class="${faceClass}"
+          style="background-color:${c}0f;${glowStyle}"
+          @pointerdown=${(e) => this._onRoomPointerDown(e, room)}
+          @pointerup=${(e) => this._onRoomPointerUp(e)}
+          @pointercancel=${() => this._onRoomPointerCancel()}
+          @pointerleave=${() => this._onRoomPointerCancel()}
+        >
+          ${roomIcon ? html`
+            <ha-icon icon="${roomIcon}" class="room-type-icon"></ha-icon>` : ''}
 
           <div class="room-info-card">
-
             <div class="info-header">
               <ha-icon icon="mdi:lightbulb"
-                style="color:${lightColor};--mdc-icon-size:18px;flex-shrink:0;"></ha-icon>
+                style="color:${lightIconColor};--mdc-icon-size:18px;flex-shrink:0;"></ha-icon>
               <span class="info-room-name">${room.name}</span>
             </div>
 
@@ -356,7 +475,6 @@ class HouseCard extends LitElement {
                 <ha-icon icon="mdi:account"
                   style="color:${personColor};--mdc-icon-size:16px;flex-shrink:0;"></ha-icon>
               </div>` : ''}
-
           </div>
         </div>
 
@@ -370,7 +488,6 @@ class HouseCard extends LitElement {
   _renderLegend() {
     const i = (icon, color) =>
       html`<ha-icon icon="${icon}" style="color:${color};--mdc-icon-size:14px;"></ha-icon>`;
-
     return html`
       <div class="legend">
         <div class="legend-item">${i('mdi:lightbulb','#ffd700')}<span>Light On</span></div>
