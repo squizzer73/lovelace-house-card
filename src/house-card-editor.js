@@ -369,6 +369,12 @@ class HouseCardEditor extends LitElement {
         margin: 16px 0;
       }
 
+      .picker-loading {
+        font-size: 0.8rem;
+        color: var(--secondary-text-color);
+        padding: 8px 0;
+      }
+
       .hint {
         font-size: 0.78rem;
         color: var(--secondary-text-color);
@@ -394,7 +400,20 @@ class HouseCardEditor extends LitElement {
   }
 
   setConfig(config) {
-    this._config = JSON.parse(JSON.stringify(config)); // deep clone
+    this._config = { ...config };
+  }
+
+  async firstUpdated() {
+    // ha-entity-picker is lazy-registered by HA. Force-load it now (on the
+    // floors list render) so it's ready by the time the user drills into a room.
+    if (!customElements.get('ha-entity-picker')) {
+      const helpers = await window.loadCardHelpers();
+      const card = await helpers.createCardElement({ type: 'entities', entities: [] });
+      await card.constructor.getConfigElement();
+    }
+    // Re-render so any room view that rendered before the await resolved
+    // upgrades its unknown tags into real pickers.
+    this.requestUpdate();
   }
 
   _fireConfigChanged() {
@@ -842,13 +861,15 @@ class HouseCardEditor extends LitElement {
       ].map(({ key, label, domains }) => html`
         <div class="entity-row">
           <div class="entity-type-label">${label}</div>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${room.entities?.[key] || ''}
-            .includeDomains=${domains}
-            allow-custom-entity
-            @value-changed=${(e) => this._updateRoomEntity(room.id, key, e.detail.value)}
-          ></ha-entity-picker>
+          ${customElements.get('ha-entity-picker')
+            ? html`<ha-entity-picker
+                .hass=${this.hass}
+                .value=${room.entities?.[key] || ''}
+                .includeDomains=${domains}
+                allow-custom-entity
+                @value-changed=${(e) => this._updateRoomEntity(room.id, key, e.detail.value)}
+              ></ha-entity-picker>`
+            : html`<div class="picker-loading">Loading…</div>`}
         </div>
       `)}
     `;
