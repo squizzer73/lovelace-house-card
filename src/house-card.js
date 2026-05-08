@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, svg } from 'lit';
 import { ROOM_TYPE_ICONS } from './constants.js';
 import './house-card-editor.js';
 
@@ -8,6 +8,7 @@ class HouseCard extends LitElement {
       _config: { type: Object },
       _hass: { type: Object },
       _activeFloor: { type: Number },
+      _activeHeatmapMode: { type: String },
     };
   }
 
@@ -35,6 +36,27 @@ class HouseCard extends LitElement {
         font-weight: 500;
         color: var(--primary-text-color);
         flex-shrink: 0;
+      }
+
+      .card-title {
+        flex: 1;
+      }
+
+      .heatmap-toggle {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+        flex-shrink: 0;
+      }
+
+      .heatmap-toggle:hover {
+        background: rgba(255,255,255,0.08);
       }
 
       .floor-tabs {
@@ -93,11 +115,24 @@ class HouseCard extends LitElement {
         overflow: visible;
       }
 
+      /* ── Thermal SVG overlay — sits behind all room divs ── */
+      .thermal-svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+        border-radius: inherit;
+        overflow: hidden;
+      }
+
       /* ── Room 3D wrapper ── */
       .room-3d {
         position: absolute;
         box-sizing: border-box;
         transform-style: preserve-3d;
+        z-index: 1;
       }
 
       /* ── Top face ── */
@@ -125,6 +160,29 @@ class HouseCard extends LitElement {
 
       .room-face.interactive {
         cursor: pointer;
+      }
+
+      /* ── Heatmap mode: fade room faces so thermal SVG shows through ── */
+      .grid-canvas[data-heatmap]:not([data-heatmap="off"]) .room-face {
+        background: rgba(5, 6, 14, 0.20) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+      }
+
+      /* Preserve a subtle warm hint for lit rooms even in heatmap mode */
+      .grid-canvas[data-heatmap]:not([data-heatmap="off"]) .room-face.light-on {
+        background: linear-gradient(150deg, rgba(90, 66, 14, 0.35), rgba(46, 31, 5, 0.40)) !important;
+        border-color: rgba(175, 130, 32, 0.32) !important;
+      }
+
+      /* Make info cards more opaque for legibility over the heatmap */
+      .grid-canvas[data-heatmap]:not([data-heatmap="off"]) .room-info-card {
+        background: rgba(5, 6, 14, 0.88);
+      }
+
+      /* Boost text legibility in heatmap mode */
+      .grid-canvas[data-heatmap]:not([data-heatmap="off"]) .info-room-name,
+      .grid-canvas[data-heatmap]:not([data-heatmap="off"]) .info-row {
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
       }
 
       /* ── Room type icon — large semi-transparent watermark ── */
@@ -207,6 +265,48 @@ class HouseCard extends LitElement {
         line-height: 1.3;
       }
 
+      /* ── Heatmap legend bar ── */
+      .heatmap-legend {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px 6px;
+        flex-shrink: 0;
+      }
+
+      .heatmap-legend-temp {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+      }
+
+      .heatmap-gradient-bar {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(to right,
+          rgb(44,95,163),
+          rgb(29,158,117),
+          rgb(245,196,62),
+          rgb(232,138,48),
+          rgb(208,72,72));
+      }
+
+      .heatmap-legend-label {
+        font-size: 0.7rem;
+        color: var(--secondary-text-color);
+        white-space: nowrap;
+      }
+
+      .heatmap-legend-hum {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.7rem;
+        color: var(--secondary-text-color);
+      }
+
       /* ── Legend bar ── */
       .legend {
         display: flex;
@@ -241,6 +341,9 @@ class HouseCard extends LitElement {
     this._config = null;
     this._hass = null;
     this._activeFloor = 0;
+    this._activeHeatmapMode = null;
+    // Unique suffix for SVG filter IDs — avoids collisions between card instances.
+    this._uid = Math.random().toString(36).slice(2, 8);
     // Tap / long-press state (non-reactive — no re-render needed)
     this._pressRoom = null;
     this._pressTimer = null;
@@ -367,19 +470,173 @@ class HouseCard extends LitElement {
     this._pressRoom = null;
   }
 
+  // ── Heatmap helpers ───────────────────────────────────────────────────────
+
+  _getHeatmapMode() {
+    return this._activeHeatmapMode ?? (this._config?.heatmap_mode ?? 'off');
+  }
+
+  _cycleHeatmapMode() {
+    const modes = ['off', 'temperature', 'humidity', 'combined'];
+    const current = this._getHeatmapMode();
+    this._activeHeatmapMode = modes[(modes.indexOf(current) + 1) % modes.length];
+  }
+
+  _renderHeatmapToggle() {
+    const mode = this._getHeatmapMode();
+    const modeMap = {
+      off:         { icon: 'mdi:thermometer-off', color: 'rgba(135,135,148,0.55)', label: 'Thermal overlay: off' },
+      temperature: { icon: 'mdi:thermometer',     color: '#ff8c42',               label: 'Thermal overlay: temperature' },
+      humidity:    { icon: 'mdi:water-percent',   color: '#55b2ff',               label: 'Thermal overlay: humidity' },
+      combined:    { icon: 'mdi:blur',            color: '#c084fc',               label: 'Thermal overlay: combined' },
+    };
+    const { icon, color, label } = modeMap[mode] || modeMap.off;
+    return html`
+      <button class="heatmap-toggle" @click=${this._cycleHeatmapMode} title="${label}">
+        <ha-icon icon="${icon}" style="color:${color};--mdc-icon-size:20px;"></ha-icon>
+      </button>
+    `;
+  }
+
+  _tempColour(t, [tMin, tMax]) {
+    const stops = [
+      { f: 0.0, c: [44,  95,  163] },
+      { f: 0.3, c: [29,  158, 117] },
+      { f: 0.5, c: [245, 196, 62]  },
+      { f: 0.7, c: [232, 138, 48]  },
+      { f: 1.0, c: [208, 72,  72]  },
+    ];
+    const f = Math.max(0, Math.min(1, (t - tMin) / (tMax - tMin)));
+    for (let i = 0; i < stops.length - 1; i++) {
+      if (f <= stops[i + 1].f) {
+        const k = (f - stops[i].f) / (stops[i + 1].f - stops[i].f);
+        const c = stops[i].c.map((v, j) => Math.round(v + (stops[i + 1].c[j] - v) * k));
+        return `rgb(${c[0]},${c[1]},${c[2]})`;
+      }
+    }
+    return `rgb(${stops.at(-1).c.join(',')})`;
+  }
+
+  _hashCode(s) {
+    let h = 0;
+    for (const ch of s) h = ((h << 5) - h + ch.charCodeAt(0)) | 0;
+    return h;
+  }
+
+  _mulberry32(seed) {
+    return () => {
+      let t = seed = (seed + 0x6D2B79F5) | 0;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  _humidityDroplets(room, floorPct) {
+    if (room._hum == null || room._hum < floorPct) return '';
+    const rng = this._mulberry32(this._hashCode(room.id || ''));
+    const density = Math.max(0, (room._hum - 35) / 65);
+    const count = Math.round(density * room.width * room.height * 1.5);
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const cx = (room.col + rng() * room.width) * 100;
+      const cy = (room.row + rng() * room.height) * 100;
+      const r  = 1.4 + rng() * 2.6;
+      const o  = (0.35 + rng() * 0.35).toFixed(2);
+      out.push(svg`<circle cx=${cx} cy=${cy} r=${r} fill="rgba(140,210,255,${o})"/>`);
+    }
+    return out;
+  }
+
+  _renderThermalLayer(floor) {
+    const mode = this._getHeatmapMode();
+    if (mode === 'off') return '';
+
+    const showTemp = mode === 'temperature' || mode === 'combined';
+    const showHum  = mode === 'humidity'    || mode === 'combined';
+    const range    = floor.temperature_range || this._config.temperature_range || [16, 26];
+    const humFloor = this._config.humidity_floor ?? 50;
+    const filterId = `thermalBlur_${this._uid}`;
+
+    const enriched = (floor.rooms || [])
+      .filter(r => r.heatmap !== false)
+      .map(r => {
+        const t = parseFloat(this._getEntityState(r.entities?.temperature)?.state);
+        const h = parseFloat(this._getEntityState(r.entities?.humidity)?.state);
+        return { ...r, _temp: isNaN(t) ? null : t, _hum: isNaN(h) ? null : h };
+      });
+
+    return svg`
+      <svg class="thermal-svg"
+           viewBox="0 0 ${floor.cols * 100} ${floor.rows * 100}"
+           preserveAspectRatio="none"
+           xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="${filterId}" x="-25%" y="-25%" width="150%" height="150%">
+            <feGaussianBlur stdDeviation="42"/>
+          </filter>
+        </defs>
+
+        ${showTemp ? svg`
+          <g filter="url(#${filterId})">
+            ${enriched.map(r => svg`
+              <rect
+                x=${r.col * 100} y=${r.row * 100}
+                width=${r.width * 100} height=${r.height * 100}
+                fill=${r._temp != null
+                  ? this._tempColour(r._temp, range)
+                  : 'rgba(80,80,90,0.35)'}
+              />`)}
+          </g>` : ''}
+
+        ${showHum ? svg`
+          <g>
+            ${enriched.map(r => this._humidityDroplets(r, humFloor))}
+          </g>` : ''}
+      </svg>`;
+  }
+
+  _renderHeatmapLegend(floor) {
+    const mode = this._getHeatmapMode();
+    if (mode === 'off') return '';
+    const showTemp = mode === 'temperature' || mode === 'combined';
+    const showHum  = mode === 'humidity'    || mode === 'combined';
+    const range    = floor?.temperature_range || this._config.temperature_range || [16, 26];
+
+    return html`
+      <div class="heatmap-legend">
+        ${showTemp ? html`
+          <div class="heatmap-legend-temp">
+            <span class="heatmap-legend-label">${range[0]}°</span>
+            <div class="heatmap-gradient-bar"></div>
+            <span class="heatmap-legend-label">${range[1]}°</span>
+          </div>` : ''}
+        ${showHum ? html`
+          <div class="heatmap-legend-hum">
+            <ha-icon icon="mdi:water-percent" style="color:#55b2ff;--mdc-icon-size:12px;"></ha-icon>
+            <span>Humidity</span>
+          </div>` : ''}
+      </div>
+    `;
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   _renderFloor(floor) {
     if (!floor || !floor.cols || !floor.rows) {
       return html`<div class="no-floor">Floor not configured</div>`;
     }
+    const mode = this._getHeatmapMode();
     const rooms = floor.rooms || [];
     const cellWPct = 100 / floor.cols;
     const cellHPct = 100 / floor.rows;
 
     return html`
       <div class="grid-wrapper">
-        <div class="grid-canvas" style="aspect-ratio:${floor.cols}/${floor.rows};">
+        <div class="grid-canvas"
+             style="aspect-ratio:${floor.cols}/${floor.rows};"
+             data-heatmap="${mode}">
+          ${this._renderThermalLayer(floor)}
           ${rooms.map(room => this._renderRoom(room, cellWPct, cellHPct))}
         </div>
       </div>
@@ -507,8 +764,10 @@ class HouseCard extends LitElement {
 
     return html`
       <ha-card>
-        ${this._config.title ? html`
-          <div class="card-header">${this._config.title}</div>` : ''}
+        <div class="card-header">
+          <span class="card-title">${this._config.title || ''}</span>
+          ${this._renderHeatmapToggle()}
+        </div>
 
         ${showTabs ? html`
           <div class="floor-tabs">
@@ -522,7 +781,11 @@ class HouseCard extends LitElement {
 
         ${floors.length === 0
           ? html`<div class="no-floor">No floors configured. Click the edit button to get started.</div>`
-          : html`${this._renderFloor(activeFloor)}${this._renderLegend()}`}
+          : html`
+            ${this._renderFloor(activeFloor)}
+            ${this._renderHeatmapLegend(activeFloor)}
+            ${this._renderLegend()}
+          `}
       </ha-card>
     `;
   }
