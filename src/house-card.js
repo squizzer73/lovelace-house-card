@@ -196,6 +196,29 @@ class HouseCard extends LitElement {
         color: white;
       }
 
+      /* ── Occupancy watermark — centred person icon, fades with different durations ── */
+      .occupancy-watermark {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        --mdc-icon-size: 56px;
+        opacity: 0;
+        pointer-events: none;
+        color: #4cdf80;
+        /*
+         * Slow fade-out: transition fires when .occupied is removed.
+         * The fast fade-in below overrides this while .occupied is present.
+         */
+        transition: opacity 7s ease-out;
+      }
+
+      .occupancy-watermark.occupied {
+        opacity: 0.22;
+        /* Fast fade-in: overrides the base 7s rule while this class is applied. */
+        transition: opacity 0.5s ease-in;
+      }
+
       /* ── Front wall ── */
       .room-wall-front {
         position: absolute;
@@ -705,6 +728,10 @@ class HouseCard extends LitElement {
         >
           ${roomIcon ? html`
             <ha-icon icon="${roomIcon}" class="room-type-icon"></ha-icon>` : ''}
+
+          ${room.entities?.occupancy ? html`
+            <ha-icon icon="mdi:account"
+              class="occupancy-watermark ${occupied ? 'occupied' : ''}"></ha-icon>` : ''}
 
           <div class="room-info-card">
             <div class="info-header">
