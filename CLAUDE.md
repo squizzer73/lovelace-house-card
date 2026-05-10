@@ -11,7 +11,13 @@ npm run dev          # watch mode (rebuilds on save)
 npm run lint         # lint src/**/*.js with eslint
 ```
 
-After building, copy `dist/house-card.js` to `/config/www/house-card.js` on the Home Assistant instance.
+After building, deploy to the HA instance (network share must be mounted first):
+
+```bash
+cp dist/house-card.js /Volumes/config/www/community/lovelace-house-card/house-card.js && gzip -9 -c dist/house-card.js > /Volumes/config/www/community/lovelace-house-card/house-card.js.gz
+```
+
+The share mounts at `/Volumes/config` (SMB). If it's not mounted, prompt the user to mount it before deploying. HACS downloads the card to `/Volumes/config/www/community/lovelace-house-card/`.
 
 ## Architecture
 

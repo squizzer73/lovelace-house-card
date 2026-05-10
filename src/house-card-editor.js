@@ -18,8 +18,8 @@ const EDITOR_STATES = {
 
 // Colours offered in the room editor (future use, wired in now)
 const ROOM_COLORS = [
-  '#4a90d9', '#7b68ee', '#50c878', '#ff8c42',
-  '#e84393', '#20b2aa', '#ffd700', '#cd853f',
+  '#3d5a78', '#4d4870', '#2d5a40', '#6a4530',
+  '#6a3055', '#2a5550', '#5a5020', '#6a4020',
 ];
 
 class HouseCardEditor extends LitElement {

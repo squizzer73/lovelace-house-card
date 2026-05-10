@@ -129,21 +129,24 @@ class HouseCard extends LitElement {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 12px 16px 32px;
+        padding: 10px 14px 22px;
         min-height: 0;
+        overflow: hidden;
         perspective: 2400px;
-        perspective-origin: 50% 30%;
-        overflow: visible;
+        perspective-origin: 50% 50%;
       }
 
       .grid-canvas {
         position: relative;
+        /* Width capped by JS (_sizeGridCanvas) so visual height fits wrapper */
         width: 100%;
+        height: auto;
         min-height: 80px;
         background: rgba(10, 11, 20, 0.95);
         border-radius: 2px;
         transform-style: preserve-3d;
-        transform: rotateX(35deg) rotateY(6deg);
+        transform-origin: 50% 50%;
+        transform: rotateX(38deg) rotateY(0deg);
         overflow: visible;
       }
 
@@ -222,13 +225,19 @@ class HouseCard extends LitElement {
         position: absolute;
         bottom: 7px;
         right: 7px;
-        --mdc-icon-size: 42px;
+        --mdc-icon-size: clamp(36px, 5vw, 80px);
         opacity: 0.13;
         pointer-events: none;
         color: white;
       }
 
       /* ── Occupancy watermark — centred person icon, fades with different durations ── */
+      @keyframes occupancy-pulse {
+        0%   { opacity: 0;    transform: translate(-50%, -50%) scale(1.5); }
+        40%  { opacity: 0.30; transform: translate(-50%, -50%) scale(0.95); }
+        100% { opacity: 0.22; transform: translate(-50%, -50%) scale(1.0); }
+      }
+
       .occupancy-watermark {
         position: absolute;
         top: 50%;
@@ -238,17 +247,11 @@ class HouseCard extends LitElement {
         opacity: 0;
         pointer-events: none;
         color: #4cdf80;
-        /*
-         * Slow fade-out: transition fires when .occupied is removed.
-         * The fast fade-in below overrides this while .occupied is present.
-         */
         transition: opacity 7s ease-out;
       }
 
       .occupancy-watermark.occupied {
-        opacity: 0.22;
-        /* Fast fade-in: overrides the base 7s rule while this class is applied. */
-        transition: opacity 0.5s ease-in;
+        animation: occupancy-pulse 0.7s ease-out forwards;
       }
 
       /* ── Front wall ── */
@@ -286,11 +289,11 @@ class HouseCard extends LitElement {
         left: 7px;
         background: rgba(5, 6, 14, 0.78);
         border: 1px solid rgba(255,255,255,0.07);
-        border-radius: 10px;
-        padding: 7px 10px 6px;
+        border-radius: clamp(8px, 1vw, 16px);
+        padding: clamp(7px, 0.8vw, 16px) clamp(10px, 1.2vw, 22px);
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: clamp(4px, 0.5vw, 10px);
         max-width: calc(100% - 14px);
         pointer-events: none;
         backdrop-filter: blur(4px);
@@ -299,11 +302,11 @@ class HouseCard extends LitElement {
       .info-header {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: clamp(5px, 0.6vw, 10px);
       }
 
       .info-room-name {
-        font-size: 0.82rem;
+        font-size: clamp(0.8rem, 1.2vw, 1.8rem);
         font-weight: 600;
         color: rgba(255,255,255,0.96);
         white-space: nowrap;
@@ -314,10 +317,16 @@ class HouseCard extends LitElement {
       .info-row {
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 0.77rem;
+        gap: clamp(4px, 0.5vw, 8px);
+        font-size: clamp(0.75rem, 1.0vw, 1.5rem);
         color: rgba(255,255,255,0.88);
         line-height: 1.3;
+      }
+
+      .info-header ha-icon,
+      .info-row ha-icon {
+        --mdc-icon-size: clamp(16px, 1.4vw, 26px);
+        flex-shrink: 0;
       }
 
       /* ── Heatmap legend bar ── */
@@ -349,7 +358,7 @@ class HouseCard extends LitElement {
       }
 
       .heatmap-legend-label {
-        font-size: 0.7rem;
+        font-size: clamp(0.68rem, 1.4vw, 0.85rem);
         color: var(--secondary-text-color);
         white-space: nowrap;
       }
@@ -358,7 +367,7 @@ class HouseCard extends LitElement {
         display: flex;
         align-items: center;
         gap: 4px;
-        font-size: 0.7rem;
+        font-size: clamp(0.68rem, 1.4vw, 0.85rem);
         color: var(--secondary-text-color);
       }
 
@@ -367,9 +376,9 @@ class HouseCard extends LitElement {
         display: flex;
         justify-content: center;
         align-items: center;
-        gap: 16px;
-        padding: 7px 16px 8px;
-        font-size: 0.72rem;
+        gap: clamp(10px, 1.2vw, 22px);
+        padding: clamp(5px, 0.5vw, 10px) 16px;
+        font-size: clamp(0.72rem, 1.0vw, 1.2rem);
         color: var(--secondary-text-color);
         flex-shrink: 0;
         border-top: 1px solid var(--divider-color, rgba(255,255,255,0.08));
@@ -378,26 +387,36 @@ class HouseCard extends LitElement {
       .legend-item {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: clamp(3px, 0.4vw, 8px);
         white-space: nowrap;
+      }
+
+      .legend-item ha-icon {
+        --mdc-icon-size: clamp(13px, 1.1vw, 20px);
       }
 
       /* ── Axonometric / dollhouse view ── */
       .axo-wrapper {
         flex: 1;
+        min-height: 0;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
         padding: 12px 16px 16px;
-        overflow: visible;
-        min-height: 0;
+        overflow: hidden;
       }
 
+      /*
+       * max-width + max-height with aspect-ratio means the browser picks the
+       * largest size that fits within BOTH the wrapper width and wrapper height.
+       * This ensures two-floor SVGs shrink to fit the card rather than clipping.
+       */
       .axo-svg {
-        width: 100%;
-        height: auto;
         display: block;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
         overflow: visible;
       }
 
@@ -422,6 +441,46 @@ class HouseCard extends LitElement {
     this._pressTimer = null;
     this._pressStartX = 0;
     this._pressStartY = 0;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this._gridRO = new ResizeObserver(() => this._sizeGridCanvas());
+  }
+
+  disconnectedCallback() {
+    this._gridRO?.disconnect();
+    this._gridROTarget = null;
+    super.disconnectedCallback();
+  }
+
+  updated() {
+    const wrapper = this.shadowRoot?.querySelector('.grid-wrapper');
+    if (wrapper && wrapper !== this._gridROTarget) {
+      this._gridRO?.disconnect();
+      this._gridRO?.observe(wrapper);
+      this._gridROTarget = wrapper;
+    }
+    this._sizeGridCanvas();
+  }
+
+  _sizeGridCanvas() {
+    const wrapper = this.shadowRoot?.querySelector('.grid-wrapper');
+    const canvas  = this.shadowRoot?.querySelector('.grid-canvas');
+    if (!wrapper || !canvas) return;
+    const floors = this._config?.floors;
+    const floor  = floors?.[this._activeFloor] ?? floors?.[0];
+    if (!floor?.cols || !floor?.rows) return;
+    const wW = wrapper.clientWidth;
+    const wH = wrapper.clientHeight;
+    if (!wW || !wH) return;
+    // Visual height after rotateX(38deg) = DOM_height × cos(38°)
+    // DOM_height = canvas_width × rows/cols
+    // Constrain so visual height ≤ wrapper height:
+    //   canvas_width ≤ wH × cols / (rows × cos(38°))
+    const cos38  = Math.cos(38 * Math.PI / 180); // ≈ 0.788
+    const maxW   = Math.floor(Math.min(wW, wH * floor.cols / (floor.rows * cos38)));
+    canvas.style.width = maxW + 'px';
   }
 
   setConfig(config) {
@@ -710,7 +769,7 @@ class HouseCard extends LitElement {
     `;
   }
 
-  // ── Axonometric rendering — Phase 1 ──────────────────────────────────────
+  // ── Axonometric rendering — Phase 2 ──────────────────────────────────────
 
   _projectionOpts() {
     const d = this._config.display || {};
@@ -720,45 +779,81 @@ class HouseCard extends LitElement {
     };
   }
 
-  // Computes a tight viewBox that encloses all projected floor geometry + padding.
-  _computeAxoViewBox(floor, z, opts) {
-    const w = floor.cols * 100;
-    const h = floor.rows * 100;
-    const corners = [
-      project(0, 0, z, opts),
-      project(w, 0, z, opts),
-      project(w, h, z, opts),
-      project(0, h, z, opts),
-    ];
-    const pad = 20;
-    const minX = Math.min(...corners.map(p => p.sx)) - pad;
-    const minY = Math.min(...corners.map(p => p.sy)) - pad;
-    const maxX = Math.max(...corners.map(p => p.sx)) + pad;
-    const maxY = Math.max(...corners.map(p => p.sy)) + pad;
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  }
-
-  _renderAxonometric(floor) {
-    if (!floor || !floor.cols || !floor.rows) {
-      return html`<div class="no-floor">Floor not configured.</div>`;
+  _renderAxonometric(floors) {
+    if (!floors || floors.length === 0) {
+      return html`<div class="no-floor">No floors configured.</div>`;
     }
-    const opts = this._projectionOpts();
-    const vb   = this._computeAxoViewBox(floor, 0, opts);
-    const ar   = (vb.w / vb.h).toFixed(4);
+
+    const sorted = [...floors].sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+    const opts   = this._projectionOpts();
+    const d      = this._config.display || {};
+    const wallH  = d.wall_height ?? 25;
+    const gapH   = d.floor_gap   ?? 250;
+
+    // z = 0 for ground floor, each higher level steps up by (wallH + gapH)
+    const floorZs = sorted.map((floor, i) => ({
+      floor,
+      z: (floor.level ?? i) * (wallH + gapH),
+    }));
+
+    // Tight viewBox over all projected corners + wall bottoms
+    const allPts = [];
+    floorZs.forEach(({ floor, z }) => {
+      const w = floor.cols * 100;
+      const h = floor.rows * 100;
+      [[0,0],[w,0],[w,h],[0,h]].forEach(([x,y]) => {
+        allPts.push(project(x, y, z, opts));
+        allPts.push(project(x, y, z - wallH, opts));
+      });
+    });
+
+    const pad  = 50;
+    const minX = Math.min(...allPts.map(p => p.sx)) - pad;
+    const minY = Math.min(...allPts.map(p => p.sy)) - pad - 20;
+    const maxX = Math.max(...allPts.map(p => p.sx)) + pad;
+    const maxY = Math.max(...allPts.map(p => p.sy)) + pad;
+    const vbW  = maxX - minX;
+    const vbH  = maxY - minY;
 
     return html`
       <div class="axo-wrapper">
         <svg class="axo-svg"
-             viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}"
+             viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${vbW.toFixed(1)} ${vbH.toFixed(1)}"
              preserveAspectRatio="xMidYMid meet"
-             style="aspect-ratio: ${ar};">
-          ${this._renderFloorAxo(floor, 0, opts)}
+             style="aspect-ratio:${(vbW / vbH).toFixed(4)};">
+          ${floorZs.map(({ floor, z }, idx) => svg`
+            ${this._renderFloorAxo(floor, z, opts, wallH)}
+          `)}
+          ${floorZs.slice(0, -1).map(({ floor, z }, idx) =>
+            this._renderGapLabel(floor, z, floorZs[idx + 1].z, wallH, opts)
+          )}
         </svg>
       </div>
     `;
   }
 
-  _renderFloorAxo(floor, z, opts) {
+  // z1 = lower floor's z, z2 = upper floor's z (z2 > z1)
+  _renderGapLabel(floor, z1, z2, wallH, opts) {
+    const gapSize = z2 - z1 - wallH;
+    if (gapSize < 40) return '';
+    const w   = floor.cols * 100;
+    const h   = floor.rows * 100;
+    // Place label at vertical midpoint of the empty gap between the two floors,
+    // toward the back-right of the scene so it doesn't overlap room labels.
+    const midZ = z1 + wallH + gapSize * 0.5;
+    const pt  = project(w * 0.72, h * 0.18, midZ, opts);
+    return svg`
+      <text x="${pt.sx.toFixed(2)}" y="${pt.sy.toFixed(2)}"
+            text-anchor="middle" dominant-baseline="middle"
+            font-family="var(--primary-font-family, sans-serif)"
+            font-size="8" letter-spacing="2"
+            fill="rgba(255,255,255,0.22)">── BETWEEN FLOORS ──</text>
+    `;
+  }
+
+  _renderFloorAxo(floor, z, opts, wallH) {
+    if (!floor.cols || !floor.rows) return svg``;
+
     const w = floor.cols * 100;
     const h = floor.rows * 100;
     const corners = [
@@ -769,30 +864,200 @@ class HouseCard extends LitElement {
     ];
     const floorPts = corners.map(p => `${p.sx.toFixed(2)},${p.sy.toFixed(2)}`).join(' ');
 
+    // Floor label above back edge
+    const labelPt = project(w / 2, 0, z + 14, opts);
+
+    // Painter's-algorithm order: back rooms first (ascending row then col)
+    const sortedRooms = [...(floor.rooms || [])].sort((a, b) =>
+      (a.row * 100 + a.col) - (b.row * 100 + b.col));
+
     return svg`
       <g class="floor-axo">
         <polygon points="${floorPts}"
-                 fill="rgba(10,11,20,0.95)"
-                 stroke="rgba(255,255,255,0.08)"
+                 fill="rgba(10,11,20,0.92)"
+                 stroke="rgba(255,255,255,0.10)"
                  stroke-width="1"/>
-        ${(floor.rooms || []).map(room => this._renderRoomAxo(room, z, opts))}
+        ${sortedRooms.map(room => this._renderRoomAxo(room, z, opts, wallH))}
+        <text x="${labelPt.sx.toFixed(2)}" y="${(labelPt.sy - 4).toFixed(2)}"
+              text-anchor="middle" dominant-baseline="auto"
+              font-family="var(--primary-font-family, sans-serif)"
+              font-size="10" font-weight="700" letter-spacing="2"
+              fill="rgba(255,255,255,0.38)">
+          ${(floor.name || 'Floor').toUpperCase()}
+        </text>
       </g>
     `;
   }
 
-  _renderRoomAxo(room, z, opts) {
+  _renderRoomAxo(room, z, opts, wallH) {
     const corners = projectRoom(room, z, opts);
-    const pts = corners.map(p => `${p.sx.toFixed(2)},${p.sy.toFixed(2)}`).join(' ');
-    const c = room.color || '#4a90d9';
+    const [c0, c1, c2, c3] = corners;
+
+    // Wall bottom = each floor corner shifted down by wallH in screen-y
+    const w0 = { sx: c0.sx, sy: c0.sy + wallH };
+    const w1 = { sx: c1.sx, sy: c1.sy + wallH };
+    const w2 = { sx: c2.sx, sy: c2.sy + wallH };
+    const w3 = { sx: c3.sx, sy: c3.sy + wallH };
+
+    const pts = arr => arr.map(p => `${p.sx.toFixed(2)},${p.sy.toFixed(2)}`).join(' ');
+
+    const color    = room.color || '#4a90d9';
+    const lightRgb = room.entities?.light       ? this._getLightColor(room.entities.light)        : null;
+    const occupied = room.entities?.occupancy   ? this._isOccupied(room.entities.occupancy)        : false;
+    const temp     = room.entities?.temperature ? this._getTemperature(room.entities.temperature)  : null;
+    const humidity = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)        : null;
+
+    // Projected centroid
+    const cx = (room.col + room.width  / 2) * 100;
+    const cy = (room.row + room.height / 2) * 100;
+    const ct = project(cx, cy, z, opts);
+
+    // Text sizing proportional to room width — capped small so text never dominates
+    const roomW    = room.width * 100;
+    const nameSize = Math.max(10, Math.min(18, roomW / 12));
+    const infoSize = Math.max(8,  Math.min(12, roomW / 18));
+
+    const hasInfo    = !!(temp || humidity);
+    const textTotalH = hasInfo ? nameSize + infoSize + 3 : nameSize;
+    const nameY      = ct.sy - textTotalH / 2 + nameSize / 2;
+    const infoY      = nameY + nameSize * 0.7 + 4;
+
+    // Unlit rooms: neutral dark panels — no per-room colour until a light is on
+    const faceFill   = lightRgb ? `rgba(${lightRgb},0.38)` : `rgba(28,32,52,0.88)`;
+    const faceStroke = lightRgb ? `rgba(${lightRgb},0.70)` : `rgba(255,255,255,0.10)`;
+    const frontFill  = lightRgb ? `rgba(${lightRgb},0.18)` : `rgba(12,15,28,0.90)`;
+    const rightFill  = lightRgb ? `rgba(${lightRgb},0.12)` : `rgba(12,15,28,0.85)`;
+    const backFill   = lightRgb ? `rgba(${lightRgb},0.08)` : `rgba(8,10,20,0.80)`;
+    const leftFill   = lightRgb ? `rgba(${lightRgb},0.06)` : `rgba(8,10,20,0.75)`;
+
+    // Glow ellipse dimensions
+    const glowRx = roomW * 0.42;
+    const glowRy = (room.height * 100) * 0.42 * (opts.tilt ?? 0.55);
+
+    // Info card geometry — centred, recessed-look rect
+    const cardPad  = infoSize * 0.7;
+    const cardW    = Math.min(roomW * 0.85, nameSize * 6.5);
+    const cardH    = hasInfo ? nameSize + infoSize + cardPad * 2 + 2 : nameSize + cardPad * 2;
+    const cardX    = ct.sx - cardW / 2;
+    const cardY    = ct.sy - cardH / 2;
+    // Text positions inside card
+    const cardNameY = hasInfo ? cardY + cardPad + nameSize * 0.5
+                              : cardY + cardH / 2;
+    const cardInfoY = cardNameY + nameSize * 0.6 + infoSize * 0.5 + 2;
+
+    const hasAction = !!(room.entities?.light || room.entities?.occupancy
+      || room.entities?.temperature || room.entities?.humidity);
+
     return svg`
-      <polygon points="${pts}"
-               fill="${c}1a"
-               stroke="${c}99"
-               stroke-width="0.8"/>
+      <g class="room-axo"
+         pointer-events="all"
+         style="${hasAction ? 'cursor:pointer' : ''}"
+         @click=${hasAction ? () => this._handleRoomTap(room) : null}>
+
+        <!-- Back wall -->
+        <polygon points="${pts([c0, c1, w1, w0])}"
+                 fill="${backFill}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+
+        <!-- Left wall -->
+        <polygon points="${pts([c3, c0, w0, w3])}"
+                 fill="${leftFill}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+
+        <!-- Floor face -->
+        <polygon points="${pts(corners)}"
+                 fill="${faceFill}" stroke="${faceStroke}" stroke-width="0.8"/>
+
+        <!-- Light glow — double ring matching flat card style -->
+        ${lightRgb ? svg`
+          <ellipse cx="${ct.sx.toFixed(2)}" cy="${ct.sy.toFixed(2)}"
+                   rx="${(glowRx * 1.6).toFixed(2)}" ry="${(glowRy * 1.6).toFixed(2)}"
+                   fill="rgba(${lightRgb},0.14)"
+                   style="filter:blur(22px);"
+                   pointer-events="none"/>
+          <ellipse cx="${ct.sx.toFixed(2)}" cy="${ct.sy.toFixed(2)}"
+                   rx="${glowRx.toFixed(2)}" ry="${glowRy.toFixed(2)}"
+                   fill="rgba(${lightRgb},0.32)"
+                   style="filter:blur(10px);"
+                   pointer-events="none"/>` : ''}
+
+        <!-- Front wall -->
+        <polygon points="${pts([c3, c2, w2, w3])}"
+                 fill="${frontFill}" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+
+        <!-- Right wall -->
+        <polygon points="${pts([c1, c2, w2, w1])}"
+                 fill="${rightFill}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+
+        <!-- Recessed info card — shadow offset, then card, then top-edge highlight -->
+        <rect x="${(cardX + 1).toFixed(2)}" y="${(cardY + 1).toFixed(2)}"
+              width="${cardW.toFixed(2)}" height="${cardH.toFixed(2)}" rx="3"
+              fill="rgba(0,0,0,0.45)" pointer-events="none"/>
+        <rect x="${cardX.toFixed(2)}" y="${cardY.toFixed(2)}"
+              width="${cardW.toFixed(2)}" height="${cardH.toFixed(2)}" rx="3"
+              fill="rgba(0,0,0,0.38)" stroke="rgba(255,255,255,0.10)" stroke-width="0.6"
+              pointer-events="none"/>
+        <line x1="${(cardX + 2).toFixed(2)}" y1="${(cardY + 0.5).toFixed(2)}"
+              x2="${(cardX + cardW - 2).toFixed(2)}" y2="${(cardY + 0.5).toFixed(2)}"
+              stroke="rgba(255,255,255,0.22)" stroke-width="0.6" pointer-events="none"/>
+
+        <!-- Occupancy person icon -->
+        ${occupied ? svg`
+          <g pointer-events="none"
+             transform="translate(${(cardX + cardW - infoSize * 1.2).toFixed(2)},${(cardY + cardPad * 0.4).toFixed(2)}) scale(${(infoSize * 0.9 / 24).toFixed(4)})">
+            <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"
+                  fill="rgba(76,223,128,0.90)"/>
+          </g>` : ''}
+
+        <!-- Room name -->
+        <text x="${ct.sx.toFixed(2)}" y="${cardNameY.toFixed(2)}"
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="var(--primary-font-family, sans-serif)"
+              font-size="${nameSize.toFixed(1)}" font-weight="600"
+              fill="rgba(255,255,255,${lightRgb ? '0.95' : '0.82'})"
+              pointer-events="none">
+          ${room.name || ''}
+        </text>
+
+        ${hasInfo ? svg`
+          <text x="${ct.sx.toFixed(2)}" y="${cardInfoY.toFixed(2)}"
+                text-anchor="middle" dominant-baseline="middle"
+                font-family="var(--primary-font-family, sans-serif)"
+                font-size="${infoSize.toFixed(1)}"
+                fill="rgba(255,255,255,0.55)"
+                pointer-events="none">
+            ${[temp, humidity].filter(Boolean).join(' · ')}
+          </text>` : ''}
+      </g>
     `;
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  // Returns an inset box-shadow colour tint based on sun.sun elevation.
+  // Night → cool blue cast; golden hour → warm amber; full day → neutral.
+  _getSunStyle() {
+    const sun = this._hass?.states?.['sun.sun'];
+    const elevation = sun?.attributes?.elevation ?? null;
+    if (elevation === null) return '';
+
+    if (elevation >= 15) {
+      // Full day — neutral, no tint
+      return '';
+    } else if (elevation >= -6) {
+      // Golden hour / twilight — warm amber fades in as sun approaches horizon
+      const t = (elevation + 6) / 21; // 0 at -6°, 1 at 15°
+      const alpha = ((1 - t) * 0.28).toFixed(3);
+      return `box-shadow:inset 0 0 140px rgba(255,120,30,${alpha});`;
+    } else if (elevation >= -18) {
+      // Civil + nautical twilight — deep amber fading to blue
+      const t = (elevation + 18) / 12; // 0 at -18°, 1 at -6°
+      const amberA = (t * 0.10).toFixed(3);
+      const blueA  = ((1 - t) * 0.18).toFixed(3);
+      return `box-shadow:inset 0 0 140px rgba(255,100,20,${amberA}),inset 0 0 100px rgba(20,40,120,${blueA});`;
+    } else {
+      // Deep night — cool blue/navy cast
+      return `box-shadow:inset 0 0 100px rgba(20,40,120,0.18);`;
+    }
+  }
 
   _renderFloor(floor) {
     if (!floor || !floor.cols || !floor.rows) {
@@ -802,11 +1067,12 @@ class HouseCard extends LitElement {
     const rooms = floor.rooms || [];
     const cellWPct = 100 / floor.cols;
     const cellHPct = 100 / floor.rows;
+    const sunStyle = this._getSunStyle();
 
     return html`
       <div class="grid-wrapper">
         <div class="grid-canvas"
-             style="aspect-ratio:${floor.cols}/${floor.rows};"
+             style="aspect-ratio:${floor.cols}/${floor.rows};${sunStyle}"
              data-heatmap="${mode}">
           ${this._renderThermalLayer(floor)}
           ${rooms.map(room => this._renderRoom(room, cellWPct, cellHPct))}
@@ -892,21 +1158,21 @@ class HouseCard extends LitElement {
             ${temp ? html`
               <div class="info-row">
                 <ha-icon icon="mdi:thermometer"
-                  style="color:${tempColor};--mdc-icon-size:16px;flex-shrink:0;"></ha-icon>
+                  style="color:${tempColor};flex-shrink:0;"></ha-icon>
                 <span>${temp}</span>
               </div>` : ''}
 
             ${humidity ? html`
               <div class="info-row">
                 <ha-icon icon="mdi:water-percent"
-                  style="color:${humColor};--mdc-icon-size:16px;flex-shrink:0;"></ha-icon>
+                  style="color:${humColor};flex-shrink:0;"></ha-icon>
                 <span>${humidity}</span>
               </div>` : ''}
 
             ${room.entities?.occupancy ? html`
               <div class="info-row">
                 <ha-icon icon="mdi:account"
-                  style="color:${personColor};--mdc-icon-size:16px;flex-shrink:0;"></ha-icon>
+                  style="color:${personColor};flex-shrink:0;"></ha-icon>
               </div>` : ''}
           </div>
         </div>
@@ -937,7 +1203,8 @@ class HouseCard extends LitElement {
     const layout      = this._getActiveLayout();
     const floors      = this._config.floors || [];
     const activeFloor = floors[this._activeFloor];
-    const showTabs    = floors.length > 1;
+    // In axonometric mode all floors render simultaneously — tabs make no sense
+    const showTabs = floors.length > 1 && layout !== 'axonometric';
 
     return html`
       <ha-card>
@@ -960,7 +1227,7 @@ class HouseCard extends LitElement {
         ${floors.length === 0
           ? html`<div class="no-floor">No floors configured. Click the edit button to get started.</div>`
           : layout === 'axonometric'
-            ? this._renderAxonometric(activeFloor)
+            ? this._renderAxonometric(floors)
             : html`
               ${this._renderFloor(activeFloor)}
               ${this._renderHeatmapLegend(activeFloor)}
