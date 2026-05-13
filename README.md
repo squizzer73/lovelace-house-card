@@ -92,6 +92,7 @@ floors:
 | `room_type` | No | One of 19 types — drives watermark icon and default label |
 | `heatmap` | No | Set `false` to opt this room out of the thermal overlay |
 | `entities.light` | No | Light entity (supports `rgb_color` and `brightness` attributes) |
+| `entities.climate` | No | Thermostat / TRV entity — shows current temp, setpoint, and heat-call indicator |
 | `entities.occupancy` | No | Binary sensor for occupancy/motion |
 | `entities.temperature` | No | Temperature sensor entity |
 | `entities.humidity` | No | Humidity sensor entity |
