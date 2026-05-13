@@ -501,6 +501,23 @@ class HouseCard extends LitElement {
     this._sizeGridCanvas();
   }
 
+  /**
+   * Returns the tight bounding box of all rooms on a floor, in grid cells.
+   * Falls back to the full floor dimensions if there are no rooms.
+   * { minCol, minRow, usedCols, usedRows }
+   */
+  _floorBounds(floor) {
+    const rooms = floor?.rooms || [];
+    if (!rooms.length) {
+      return { minCol: 0, minRow: 0, usedCols: floor?.cols || 1, usedRows: floor?.rows || 1 };
+    }
+    const minCol = Math.min(...rooms.map(r => r.col));
+    const minRow = Math.min(...rooms.map(r => r.row));
+    const maxCol = Math.max(...rooms.map(r => r.col + r.width));
+    const maxRow = Math.max(...rooms.map(r => r.row + r.height));
+    return { minCol, minRow, usedCols: maxCol - minCol, usedRows: maxRow - minRow };
+  }
+
   _sizeGridCanvas() {
     const wrapper = this.shadowRoot?.querySelector('.grid-wrapper');
     const canvas  = this.shadowRoot?.querySelector('.grid-canvas');
@@ -511,12 +528,13 @@ class HouseCard extends LitElement {
     const wW = wrapper.clientWidth;
     const wH = wrapper.clientHeight;
     if (!wW || !wH) return;
+    // Use trimmed bounding box for sizing so empty rows/cols don't waste space
+    const { usedCols, usedRows } = this._floorBounds(floor);
     // Visual height after rotateX(38deg) = DOM_height × cos(38°)
-    // DOM_height = canvas_width × rows/cols
+    // DOM_height = canvas_width × usedRows/usedCols
     // Constrain so visual height ≤ wrapper height:
-    //   canvas_width ≤ wH × cols / (rows × cos(38°))
-    const cos38  = Math.cos(38 * Math.PI / 180); // ≈ 0.788
-    const maxW   = Math.floor(Math.min(wW, wH * floor.cols / (floor.rows * cos38)));
+    const cos38 = Math.cos(38 * Math.PI / 180); // ≈ 0.788
+    const maxW  = Math.floor(Math.min(wW, wH * usedCols / (usedRows * cos38)));
     canvas.style.width = maxW + 'px';
   }
 
@@ -774,7 +792,7 @@ class HouseCard extends LitElement {
     return out;
   }
 
-  _renderThermalLayer(floor) {
+  _renderThermalLayer(floor, minCol = 0, minRow = 0, usedCols = null, usedRows = null) {
     const mode = this._getHeatmapMode();
     if (mode === 'off') return '';
 
@@ -783,17 +801,23 @@ class HouseCard extends LitElement {
     const range    = floor.temperature_range || this._config.temperature_range || [16, 26];
     const humFloor = this._config.humidity_floor ?? 50;
 
+    const vbCols = usedCols ?? floor.cols;
+    const vbRows = usedRows ?? floor.rows;
+
     const enriched = (floor.rooms || [])
       .filter(r => r.heatmap !== false)
       .map(r => {
         const t = parseFloat(this._getEntityState(r.entities?.temperature)?.state);
         const h = parseFloat(this._getEntityState(r.entities?.humidity)?.state);
-        return { ...r, _temp: isNaN(t) ? null : t, _hum: isNaN(h) ? null : h };
+        // Offset room coordinates to the trimmed origin
+        return { ...r,
+          col: r.col - minCol, row: r.row - minRow,
+          _temp: isNaN(t) ? null : t, _hum: isNaN(h) ? null : h };
       });
 
     return svg`
       <svg class="thermal-svg"
-           viewBox="0 0 ${floor.cols * 100} ${floor.rows * 100}"
+           viewBox="0 0 ${vbCols * 100} ${vbRows * 100}"
            preserveAspectRatio="none"
            xmlns="http://www.w3.org/2000/svg">
 
@@ -1180,25 +1204,28 @@ class HouseCard extends LitElement {
     if (!floor || !floor.cols || !floor.rows) {
       return html`<div class="no-floor">Floor not configured</div>`;
     }
-    const mode = this._getHeatmapMode();
-    const rooms = floor.rooms || [];
-    const cellWPct = 100 / floor.cols;
-    const cellHPct = 100 / floor.rows;
+    const mode   = this._getHeatmapMode();
+    const rooms  = floor.rooms || [];
     const sunStyle = this._getSunStyle();
+
+    // Trim canvas to the tight bounding box of actual rooms
+    const { minCol, minRow, usedCols, usedRows } = this._floorBounds(floor);
+    const cellWPct = 100 / usedCols;
+    const cellHPct = 100 / usedRows;
 
     return html`
       <div class="grid-wrapper">
         <div class="grid-canvas"
-             style="aspect-ratio:${floor.cols}/${floor.rows};${sunStyle}"
+             style="aspect-ratio:${usedCols}/${usedRows};${sunStyle}"
              data-heatmap="${mode}">
-          ${this._renderThermalLayer(floor)}
-          ${rooms.map(room => this._renderRoom(room, cellWPct, cellHPct))}
+          ${this._renderThermalLayer(floor, minCol, minRow, usedCols, usedRows)}
+          ${rooms.map(room => this._renderRoom(room, cellWPct, cellHPct, minCol, minRow))}
         </div>
       </div>
     `;
   }
 
-  _renderRoom(room, cellWPct, cellHPct) {
+  _renderRoom(room, cellWPct, cellHPct, minCol = 0, minRow = 0) {
     const lightOn   = room.entities?.light       ? this._isLightOn(room.entities.light)            : false;
     const occupied  = room.entities?.occupancy  ? this._isOccupied(room.entities.occupancy)        : false;
     const temp      = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
@@ -1208,8 +1235,8 @@ class HouseCard extends LitElement {
     const detections = this._getDetections(room.entities?.detections);
 
     const gap = 0.6;
-    const left   = `${room.col   * cellWPct + gap}%`;
-    const top    = `${room.row   * cellHPct + gap}%`;
+    const left   = `${(room.col  - minCol) * cellWPct + gap}%`;
+    const top    = `${(room.row  - minRow) * cellHPct + gap}%`;
     const width  = `${room.width * cellWPct - gap * 2}%`;
     const height = `${room.height * cellHPct - gap * 2}%`;
 

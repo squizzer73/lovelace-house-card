@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6] — 2026-05-13
+
+### Fixed
+- **Auto-trim empty space** — the flat grid canvas now sizes itself to the tight bounding box of the rooms actually placed on the floor, eliminating dead space above/below/beside rooms. Rooms placed mid-grid no longer leave large empty areas. The heatmap thermal layer and canvas sizing follow the same bounding box automatically.
+
+---
+
 ## [0.2.5] — 2026-05-13
 
 ### Added
