@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.4] — 2026-05-13
+
+### Added
+- **Heating / TRV support** — bind a `climate.*` entity to any room via the new "Thermostat / TRV" picker in the editor
+- **Heat-call indicator (flat view)** — `mdi:fire` icon in the room info card shows current temp / setpoint (`16.0°C / 20.0°C`); icon glows orange and pulses when the room is actively calling for heat (`hvac_action === 'heating'`, or current < setpoint − 0.5° as fallback)
+- **Heat floor glow (axo view)** — warm amber bloom on the room floor when actively calling for heat, distinct from the light glow
+- **Heating text in axo info card** — current → setpoint displayed in the recessed card; coloured orange when calling
+
+---
+
 ## [0.2.3] — 2026-05-10
 
 ### Added

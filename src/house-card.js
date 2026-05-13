@@ -231,6 +231,18 @@ class HouseCard extends LitElement {
         color: white;
       }
 
+      /* ── Heating indicator — flame icon pulses when actively calling for heat ── */
+      @keyframes heat-call-pulse {
+        0%   { opacity: 0.65; transform: scale(1.0); }
+        50%  { opacity: 1.0;  transform: scale(1.15); }
+        100% { opacity: 0.65; transform: scale(1.0); }
+      }
+
+      .heat-calling {
+        animation: heat-call-pulse 2s ease-in-out infinite;
+        color: #ff8c42 !important;
+      }
+
       /* ── Occupancy watermark — centred person icon, fades with different durations ── */
       @keyframes occupancy-pulse {
         0%   { opacity: 0;    transform: translate(-50%, -50%) scale(1.5); }
@@ -537,6 +549,26 @@ class HouseCard extends LitElement {
   }
 
   /**
+   * Returns heating state for a climate / TRV entity.
+   * { current, setpoint, unit, calling }
+   *   calling = true when hvac_action === 'heating', or (current < setpoint - 0.5) as fallback
+   */
+  _getHeatingInfo(entityId) {
+    const state = this._getEntityState(entityId);
+    if (!state) return null;
+    const attrs   = state.attributes || {};
+    const current = parseFloat(attrs.current_temperature);
+    const setpoint = parseFloat(attrs.temperature);
+    if (isNaN(current) && isNaN(setpoint)) return null;
+    const unit    = attrs.unit_of_measurement || '°C';
+    const action  = attrs.hvac_action;
+    const calling = action
+      ? action === 'heating'
+      : (!isNaN(current) && !isNaN(setpoint) && current < setpoint - 0.5);
+    return { current: isNaN(current) ? null : current, setpoint: isNaN(setpoint) ? null : setpoint, unit, calling };
+  }
+
+  /**
    * Returns "r,g,b" from the light's rgb_color attribute when it's on,
    * or a warm-white fallback, or null if the light is off.
    */
@@ -558,6 +590,7 @@ class HouseCard extends LitElement {
   _handleRoomLongPress(room) {
     // Open more-info for the most informative entity on this room.
     const entityId = room.entities?.light
+      || room.entities?.climate
       || room.entities?.occupancy
       || room.entities?.temperature
       || room.entities?.humidity;
@@ -906,6 +939,7 @@ class HouseCard extends LitElement {
     const occupied = room.entities?.occupancy   ? this._isOccupied(room.entities.occupancy)        : false;
     const temp     = room.entities?.temperature ? this._getTemperature(room.entities.temperature)  : null;
     const humidity = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)        : null;
+    const heating  = room.entities?.climate     ? this._getHeatingInfo(room.entities.climate)      : null;
 
     // Projected centroid
     const cx = (room.col + room.width  / 2) * 100;
@@ -917,7 +951,7 @@ class HouseCard extends LitElement {
     const nameSize = Math.max(10, Math.min(18, roomW / 12));
     const infoSize = Math.max(8,  Math.min(12, roomW / 18));
 
-    const hasInfo    = !!(temp || humidity);
+    const hasInfo    = !!(temp || humidity || heating);
     const textTotalH = hasInfo ? nameSize + infoSize + 3 : nameSize;
     const nameY      = ct.sy - textTotalH / 2 + nameSize / 2;
     const infoY      = nameY + nameSize * 0.7 + 4;
@@ -935,18 +969,22 @@ class HouseCard extends LitElement {
     const glowRy = (room.height * 100) * 0.42 * (opts.tilt ?? 0.55);
 
     // Info card geometry — centred, recessed-look rect
-    const cardPad  = infoSize * 0.7;
-    const cardW    = Math.min(roomW * 0.85, nameSize * 6.5);
-    const cardH    = hasInfo ? nameSize + infoSize + cardPad * 2 + 2 : nameSize + cardPad * 2;
-    const cardX    = ct.sx - cardW / 2;
-    const cardY    = ct.sy - cardH / 2;
+    const cardPad    = infoSize * 0.7;
+    const cardW      = Math.min(roomW * 0.85, nameSize * 6.5);
+    // How many info rows: sensor line (temp/hum) + heating line (if present)
+    const infoLines  = ((temp || humidity) ? 1 : 0) + (heating ? 1 : 0);
+    const cardH      = hasInfo
+      ? nameSize + infoLines * (infoSize * 1.3) + cardPad * 2 + 2
+      : nameSize + cardPad * 2;
+    const cardX      = ct.sx - cardW / 2;
+    const cardY      = ct.sy - cardH / 2;
     // Text positions inside card
-    const cardNameY = hasInfo ? cardY + cardPad + nameSize * 0.5
-                              : cardY + cardH / 2;
-    const cardInfoY = cardNameY + nameSize * 0.6 + infoSize * 0.5 + 2;
+    const cardNameY  = hasInfo ? cardY + cardPad + nameSize * 0.5
+                               : cardY + cardH / 2;
+    const cardInfoY  = cardNameY + nameSize * 0.6 + infoSize * 0.65 + 2;
 
     const hasAction = !!(room.entities?.light || room.entities?.occupancy
-      || room.entities?.temperature || room.entities?.humidity);
+      || room.entities?.temperature || room.entities?.humidity || room.entities?.climate);
 
     return svg`
       <g class="room-axo"
@@ -977,6 +1015,19 @@ class HouseCard extends LitElement {
                    rx="${glowRx.toFixed(2)}" ry="${glowRy.toFixed(2)}"
                    fill="rgba(${lightRgb},0.32)"
                    style="filter:blur(10px);"
+                   pointer-events="none"/>` : ''}
+
+        <!-- Heat glow — warm amber floor bloom when actively calling for heat -->
+        ${heating?.calling ? svg`
+          <ellipse cx="${ct.sx.toFixed(2)}" cy="${ct.sy.toFixed(2)}"
+                   rx="${(glowRx * 1.4).toFixed(2)}" ry="${(glowRy * 1.4).toFixed(2)}"
+                   fill="rgba(255,100,20,0.12)"
+                   style="filter:blur(28px);"
+                   pointer-events="none"/>
+          <ellipse cx="${ct.sx.toFixed(2)}" cy="${ct.sy.toFixed(2)}"
+                   rx="${(glowRx * 0.7).toFixed(2)}" ry="${(glowRy * 0.7).toFixed(2)}"
+                   fill="rgba(255,120,30,0.20)"
+                   style="filter:blur(12px);"
                    pointer-events="none"/>` : ''}
 
         <!-- Front wall -->
@@ -1017,15 +1068,27 @@ class HouseCard extends LitElement {
           ${room.name || ''}
         </text>
 
-        ${hasInfo ? svg`
-          <text x="${ct.sx.toFixed(2)}" y="${cardInfoY.toFixed(2)}"
-                text-anchor="middle" dominant-baseline="middle"
-                font-family="var(--primary-font-family, sans-serif)"
-                font-size="${infoSize.toFixed(1)}"
-                fill="rgba(255,255,255,0.55)"
-                pointer-events="none">
-            ${[temp, humidity].filter(Boolean).join(' · ')}
-          </text>` : ''}
+        ${hasInfo ? (() => {
+            const sensorText = [temp, humidity].filter(Boolean).join(' · ');
+            const heatText   = heating
+              ? (heating.current !== null ? `${heating.current.toFixed(1)}${heating.unit}` : '—') +
+                (heating.setpoint !== null ? `→${heating.setpoint.toFixed(1)}${heating.unit}` : '')
+              : null;
+            // Stack sensor row and heat row if both present, otherwise combine
+            const lines = [sensorText || null, heatText].filter(Boolean);
+            const lineH  = infoSize * 1.3;
+            const startY = lines.length > 1 ? cardInfoY - lineH / 2 : cardInfoY;
+            return svg`
+              ${lines.map((line, i) => svg`
+                <text x="${ct.sx.toFixed(2)}" y="${(startY + i * lineH).toFixed(2)}"
+                      text-anchor="middle" dominant-baseline="middle"
+                      font-family="var(--primary-font-family, sans-serif)"
+                      font-size="${infoSize.toFixed(1)}"
+                      fill="${(line === heatText && heating?.calling) ? 'rgba(255,140,66,0.90)' : 'rgba(255,255,255,0.55)'}"
+                      pointer-events="none">
+                  ${line}
+                </text>`)}`;
+          })() : ''}
       </g>
     `;
   }
@@ -1087,6 +1150,7 @@ class HouseCard extends LitElement {
     const temp     = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
     const humidity = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)       : null;
     const lightRgb = room.entities?.light       ? this._getLightColor(room.entities.light)        : null;
+    const heating  = room.entities?.climate     ? this._getHeatingInfo(room.entities.climate)     : null;
 
     const gap = 0.6;
     const left   = `${room.col   * cellWPct + gap}%`;
@@ -1095,7 +1159,7 @@ class HouseCard extends LitElement {
     const height = `${room.height * cellHPct - gap * 2}%`;
 
     const hasAction = !!(room.entities?.light || room.entities?.occupancy
-      || room.entities?.temperature || room.entities?.humidity);
+      || room.entities?.temperature || room.entities?.humidity || room.entities?.climate);
     const faceClass = [
       'room-face',
       lightOn ? 'light-on' : '',
@@ -1167,6 +1231,15 @@ class HouseCard extends LitElement {
                 <ha-icon icon="mdi:water-percent"
                   style="color:${humColor};flex-shrink:0;"></ha-icon>
                 <span>${humidity}</span>
+              </div>` : ''}
+
+            ${heating ? html`
+              <div class="info-row">
+                <ha-icon icon="mdi:fire"
+                  class="${heating.calling ? 'heat-calling' : ''}"
+                  style="color:${heating.calling ? '#ff8c42' : 'rgba(135,135,148,0.55)'};flex-shrink:0;"></ha-icon>
+                <span>${heating.current !== null ? `${heating.current.toFixed(1)}${heating.unit}` : '—'}
+                  ${heating.setpoint !== null ? `/ ${heating.setpoint.toFixed(1)}${heating.unit}` : ''}</span>
               </div>` : ''}
 
             ${room.entities?.occupancy ? html`
