@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.10] — 2026-05-13
+
+### Fixed
+- **Top dead space eliminated** — `rotateX(38deg)` centres the rendered content on the canvas's CSS bounding-box midpoint, leaving `layoutH × (1 − cos 38°) / 2` pixels of dead space above the first row of rooms. A two-pass correction in `_applyCanvasHeight` now applies a trig-based `margin-top` estimate, then forces a layout flush, measures the actual rendered canvas top via `getBoundingClientRect()`, and fine-tunes the margin to align the top row of rooms with the wrapper's padding edge. The `perspective: 2400px` depth distorts the pure-trig prediction by ~40 %, making the empirical second pass essential.
+
+---
+
+## [0.2.8] — 2026-05-13
+
+### Fixed
+- **Dead space below flat-view grid eliminated** — `rotateX(38deg)` makes the canvas visually shorter than its CSS layout height (by a factor of `cos(38°) ≈ 0.788`). The wrapper now uses `requestAnimationFrame` to read the canvas's layout height, compute the true visual height, and set the wrapper to that height. The perspective-origin is simultaneously adjusted to stay centred on the canvas, preserving the tilt appearance. `justify-content` changed to `flex-start` so the canvas anchors to the top padding rather than being centred in an oversized container.
+
+---
+
 ## [0.2.7] — 2026-05-13
 
 ### Fixed

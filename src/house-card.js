@@ -125,7 +125,7 @@ class HouseCard extends LitElement {
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         padding: 10px 14px 22px;
         overflow: hidden;
         perspective: 2400px;
@@ -138,6 +138,8 @@ class HouseCard extends LitElement {
         width: 100%;
         height: auto;
         min-height: 80px;
+        /* Must not shrink — the wrapper clips overflow to visual height via JS */
+        flex-shrink: 0;
         background: rgba(10, 11, 20, 0.95);
         border-radius: 2px;
         transform-style: preserve-3d;
@@ -520,9 +522,43 @@ class HouseCard extends LitElement {
     if (!wrapper || !canvas) return;
     const wW = wrapper.clientWidth;
     if (!wW) return;
-    // Card now auto-sizes to content, so just fill the wrapper width.
-    // The aspect-ratio CSS property handles the height automatically.
     canvas.style.width = wW + 'px';
+    // The 38deg rotateX tilt reduces the visual canvas height to layoutH * cos(38°).
+    // Without correction the wrapper grows to the full layout height, leaving dead space.
+    // Apply the height collapse immediately AND via rAF as a fallback for background tabs
+    // where rAF may be deferred until the tab becomes visible.
+    this._applyCanvasHeight(wrapper, canvas);
+    requestAnimationFrame(() => this._applyCanvasHeight(wrapper, canvas));
+  }
+
+  _applyCanvasHeight(wrapper, canvas) {
+    const layoutH = canvas.offsetHeight;
+    if (!layoutH || layoutH <= 80) return; // skip min-height fallback
+    const TILT_RAD = 38 * Math.PI / 180;
+    const cosA    = Math.cos(TILT_RAD);
+    const visualH = Math.round(layoutH * cosA);
+    // 10px top-padding + 22px bottom-padding = 32px
+    wrapper.style.height = (visualH + 32) + 'px';
+
+    // Tilt creates dead space above the rendered content equal to layoutH*(1-cos)/2.
+    // Step 1: apply a trig-based estimate to shift the canvas up.
+    const deadSpaceEst = Math.round(layoutH * (1 - cosA) / 2);
+    canvas.style.marginTop = -deadSpaceEst + 'px';
+
+    // Step 2: force a layout flush via getBoundingClientRect(), measure the actual
+    // rendered top of the canvas relative to the wrapper, and fine-tune.
+    // The perspective depth (2400px) distorts the trig estimate slightly.
+    const canvasBBTop  = canvas.getBoundingClientRect().top;
+    const wrapperBBTop = wrapper.getBoundingClientRect().top;
+    const extraDead    = Math.round(canvasBBTop - wrapperBBTop - 10); // 10 = padding-top
+    if (Math.abs(extraDead) > 2) {
+      const cur = parseInt(canvas.style.marginTop) || 0;
+      canvas.style.marginTop = (cur - extraDead) + 'px';
+    }
+
+    // Keep perspective-origin on the canvas centre so the tilt appearance is stable.
+    const finalMT = parseInt(canvas.style.marginTop) || 0;
+    wrapper.style.perspectiveOrigin = `50% ${10 + finalMT + Math.round(layoutH / 2)}px`;
   }
 
   setConfig(config) {
