@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7] — 2026-05-13
+
+### Fixed
+- **Card height now matches content** — removed `height: 100%` from the card so it shrinks to fit its rooms rather than expanding to fill the full dashboard tile. This eliminates the large empty space that appeared above/below trimmed grids with few rooms. Cards in the dashboard will now be as tall as their content naturally requires.
+
+---
+
 ## [0.2.6] — 2026-05-13
 
 ### Fixed

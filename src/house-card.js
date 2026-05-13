@@ -48,14 +48,12 @@ class HouseCard extends LitElement {
     return css`
       :host {
         display: block;
-        height: 100%;
         font-family: var(--primary-font-family, sans-serif);
       }
 
       ha-card {
         overflow: hidden;
         padding: 0;
-        height: 100%;
         display: flex;
         flex-direction: column;
       }
@@ -124,13 +122,11 @@ class HouseCard extends LitElement {
 
       .grid-wrapper {
         box-sizing: border-box;
-        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         padding: 10px 14px 22px;
-        min-height: 0;
         overflow: hidden;
         perspective: 2400px;
         perspective-origin: 50% 50%;
@@ -522,20 +518,11 @@ class HouseCard extends LitElement {
     const wrapper = this.shadowRoot?.querySelector('.grid-wrapper');
     const canvas  = this.shadowRoot?.querySelector('.grid-canvas');
     if (!wrapper || !canvas) return;
-    const floors = this._config?.floors;
-    const floor  = floors?.[this._activeFloor] ?? floors?.[0];
-    if (!floor?.cols || !floor?.rows) return;
     const wW = wrapper.clientWidth;
-    const wH = wrapper.clientHeight;
-    if (!wW || !wH) return;
-    // Use trimmed bounding box for sizing so empty rows/cols don't waste space
-    const { usedCols, usedRows } = this._floorBounds(floor);
-    // Visual height after rotateX(38deg) = DOM_height × cos(38°)
-    // DOM_height = canvas_width × usedRows/usedCols
-    // Constrain so visual height ≤ wrapper height:
-    const cos38 = Math.cos(38 * Math.PI / 180); // ≈ 0.788
-    const maxW  = Math.floor(Math.min(wW, wH * usedCols / (usedRows * cos38)));
-    canvas.style.width = maxW + 'px';
+    if (!wW) return;
+    // Card now auto-sizes to content, so just fill the wrapper width.
+    // The aspect-ratio CSS property handles the height automatically.
+    canvas.style.width = wW + 'px';
   }
 
   setConfig(config) {
