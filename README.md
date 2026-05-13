@@ -96,6 +96,22 @@ floors:
 | `entities.occupancy` | No | Binary sensor for occupancy/motion |
 | `entities.temperature` | No | Temperature sensor entity |
 | `entities.humidity` | No | Humidity sensor entity |
+| `entities.detections` | No | List of camera detection entries — see below |
+
+### Detection entries
+
+Each item under `entities.detections` has two keys:
+
+```yaml
+entities:
+  detections:
+    - type: person    # person | dog | cat | vehicle | package
+      entity: binary_sensor.lounge_camera_person
+    - type: dog
+      entity: binary_sensor.lounge_camera_dog
+```
+
+Icons only appear on rooms where `detections` is configured. Active detections pop in with colour; inactive ones are invisible.
 
 ### Room types
 

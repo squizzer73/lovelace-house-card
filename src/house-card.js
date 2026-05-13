@@ -1,5 +1,5 @@
 import { LitElement, html, css, svg } from 'lit';
-import { ROOM_TYPE_ICONS } from './constants.js';
+import { ROOM_TYPE_ICONS, DETECTION_TYPES } from './constants.js';
 import './house-card-editor.js';
 
 // ── Pure projection functions ────────────────────────────────────────────────
@@ -241,6 +241,31 @@ class HouseCard extends LitElement {
       .heat-calling {
         animation: heat-call-pulse 2s ease-in-out infinite;
         color: #ff8c42 !important;
+      }
+
+      /* ── Detection icons — row of camera detection indicators ── */
+      @keyframes detection-pop {
+        0%   { opacity: 0;    transform: scale(1.4); }
+        50%  { opacity: 1.0;  transform: scale(0.92); }
+        100% { opacity: 1.0;  transform: scale(1.0); }
+      }
+
+      .detection-row {
+        display: flex;
+        align-items: center;
+        gap: clamp(3px, 0.4vw, 7px);
+      }
+
+      .detection-icon-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 5s ease-out;
+      }
+
+      .detection-icon-wrap.active {
+        animation: detection-pop 0.5s ease-out forwards;
+        transition: opacity 0.3s ease-in;
       }
 
       /* ── Occupancy watermark — centred person icon, fades with different durations ── */
@@ -566,6 +591,19 @@ class HouseCard extends LitElement {
       ? action === 'heating'
       : (!isNaN(current) && !isNaN(setpoint) && current < setpoint - 0.5);
     return { current: isNaN(current) ? null : current, setpoint: isNaN(setpoint) ? null : setpoint, unit, calling };
+  }
+
+  /**
+   * Returns detection state for each configured detection entry.
+   * [{ type, icon, color, active }]
+   */
+  _getDetections(detections) {
+    if (!detections?.length) return [];
+    return detections.map(d => {
+      const def    = DETECTION_TYPES[d.type] || { icon: 'mdi:eye', color: '#94a3b8' };
+      const active = this._getEntityState(d.entity)?.state === 'on';
+      return { type: d.type, icon: def.icon, color: def.color, active };
+    });
   }
 
   /**
@@ -934,12 +972,13 @@ class HouseCard extends LitElement {
 
     const pts = arr => arr.map(p => `${p.sx.toFixed(2)},${p.sy.toFixed(2)}`).join(' ');
 
-    const color    = room.color || '#4a90d9';
-    const lightRgb = room.entities?.light       ? this._getLightColor(room.entities.light)        : null;
-    const occupied = room.entities?.occupancy   ? this._isOccupied(room.entities.occupancy)        : false;
-    const temp     = room.entities?.temperature ? this._getTemperature(room.entities.temperature)  : null;
-    const humidity = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)        : null;
-    const heating  = room.entities?.climate     ? this._getHeatingInfo(room.entities.climate)      : null;
+    const color      = room.color || '#4a90d9';
+    const lightRgb   = room.entities?.light       ? this._getLightColor(room.entities.light)        : null;
+    const occupied   = room.entities?.occupancy   ? this._isOccupied(room.entities.occupancy)        : false;
+    const temp       = room.entities?.temperature ? this._getTemperature(room.entities.temperature)  : null;
+    const humidity   = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)        : null;
+    const heating    = room.entities?.climate     ? this._getHeatingInfo(room.entities.climate)      : null;
+    const detections = this._getDetections(room.entities?.detections);
 
     // Projected centroid
     const cx = (room.col + room.width  / 2) * 100;
@@ -951,7 +990,7 @@ class HouseCard extends LitElement {
     const nameSize = Math.max(10, Math.min(18, roomW / 12));
     const infoSize = Math.max(8,  Math.min(12, roomW / 18));
 
-    const hasInfo    = !!(temp || humidity || heating);
+    const hasInfo    = !!(temp || humidity || heating || detections.length);
     const textTotalH = hasInfo ? nameSize + infoSize + 3 : nameSize;
     const nameY      = ct.sy - textTotalH / 2 + nameSize / 2;
     const infoY      = nameY + nameSize * 0.7 + 4;
@@ -971,8 +1010,8 @@ class HouseCard extends LitElement {
     // Info card geometry — centred, recessed-look rect
     const cardPad    = infoSize * 0.7;
     const cardW      = Math.min(roomW * 0.85, nameSize * 6.5);
-    // How many info rows: sensor line (temp/hum) + heating line (if present)
-    const infoLines  = ((temp || humidity) ? 1 : 0) + (heating ? 1 : 0);
+    // How many info rows: sensor line + heating line + detection dots line
+    const infoLines  = ((temp || humidity) ? 1 : 0) + (heating ? 1 : 0) + (detections.length ? 1 : 0);
     const cardH      = hasInfo
       ? nameSize + infoLines * (infoSize * 1.3) + cardPad * 2 + 2
       : nameSize + cardPad * 2;
@@ -984,7 +1023,8 @@ class HouseCard extends LitElement {
     const cardInfoY  = cardNameY + nameSize * 0.6 + infoSize * 0.65 + 2;
 
     const hasAction = !!(room.entities?.light || room.entities?.occupancy
-      || room.entities?.temperature || room.entities?.humidity || room.entities?.climate);
+      || room.entities?.temperature || room.entities?.humidity
+      || room.entities?.climate || room.entities?.detections?.length);
 
     return svg`
       <g class="room-axo"
@@ -1074,10 +1114,19 @@ class HouseCard extends LitElement {
               ? (heating.current !== null ? `${heating.current.toFixed(1)}${heating.unit}` : '—') +
                 (heating.setpoint !== null ? `→${heating.setpoint.toFixed(1)}${heating.unit}` : '')
               : null;
-            // Stack sensor row and heat row if both present, otherwise combine
-            const lines = [sensorText || null, heatText].filter(Boolean);
+            const lines  = [sensorText || null, heatText].filter(Boolean);
             const lineH  = infoSize * 1.3;
-            const startY = lines.length > 1 ? cardInfoY - lineH / 2 : cardInfoY;
+            // If detections present, leave room for a dot row below the text lines
+            const totalTextLines = lines.length + (detections.length ? 1 : 0);
+            const startY = totalTextLines > 1 ? cardInfoY - lineH * (totalTextLines - 1) / 2 : cardInfoY;
+
+            // Detection dots: small filled circles, one per configured detection
+            const dotR    = Math.max(2.5, infoSize * 0.38);
+            const dotGap  = dotR * 2.8;
+            const dotsW   = detections.length * dotGap - dotGap * 0.2;
+            const dotY    = startY + lines.length * lineH;
+            const dotStartX = ct.sx - dotsW / 2 + dotR;
+
             return svg`
               ${lines.map((line, i) => svg`
                 <text x="${ct.sx.toFixed(2)}" y="${(startY + i * lineH).toFixed(2)}"
@@ -1087,7 +1136,12 @@ class HouseCard extends LitElement {
                       fill="${(line === heatText && heating?.calling) ? 'rgba(255,140,66,0.90)' : 'rgba(255,255,255,0.55)'}"
                       pointer-events="none">
                   ${line}
-                </text>`)}`;
+                </text>`)}
+              ${detections.map((d, i) => svg`
+                <circle cx="${(dotStartX + i * dotGap).toFixed(2)}" cy="${dotY.toFixed(2)}"
+                        r="${dotR.toFixed(2)}"
+                        fill="${d.active ? d.color : 'rgba(255,255,255,0.15)'}"
+                        pointer-events="none"/>`)}`;
           })() : ''}
       </g>
     `;
@@ -1145,12 +1199,13 @@ class HouseCard extends LitElement {
   }
 
   _renderRoom(room, cellWPct, cellHPct) {
-    const lightOn  = room.entities?.light       ? this._isLightOn(room.entities.light)           : false;
-    const occupied = room.entities?.occupancy   ? this._isOccupied(room.entities.occupancy)       : false;
-    const temp     = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
-    const humidity = room.entities?.humidity    ? this._getHumidity(room.entities.humidity)       : null;
-    const lightRgb = room.entities?.light       ? this._getLightColor(room.entities.light)        : null;
-    const heating  = room.entities?.climate     ? this._getHeatingInfo(room.entities.climate)     : null;
+    const lightOn   = room.entities?.light       ? this._isLightOn(room.entities.light)            : false;
+    const occupied  = room.entities?.occupancy  ? this._isOccupied(room.entities.occupancy)        : false;
+    const temp      = room.entities?.temperature ? this._getTemperature(room.entities.temperature) : null;
+    const humidity  = room.entities?.humidity   ? this._getHumidity(room.entities.humidity)        : null;
+    const lightRgb  = room.entities?.light      ? this._getLightColor(room.entities.light)         : null;
+    const heating   = room.entities?.climate    ? this._getHeatingInfo(room.entities.climate)      : null;
+    const detections = this._getDetections(room.entities?.detections);
 
     const gap = 0.6;
     const left   = `${room.col   * cellWPct + gap}%`;
@@ -1159,7 +1214,8 @@ class HouseCard extends LitElement {
     const height = `${room.height * cellHPct - gap * 2}%`;
 
     const hasAction = !!(room.entities?.light || room.entities?.occupancy
-      || room.entities?.temperature || room.entities?.humidity || room.entities?.climate);
+      || room.entities?.temperature || room.entities?.humidity
+      || room.entities?.climate || room.entities?.detections?.length);
     const faceClass = [
       'room-face',
       lightOn ? 'light-on' : '',
@@ -1246,6 +1302,16 @@ class HouseCard extends LitElement {
               <div class="info-row">
                 <ha-icon icon="mdi:account"
                   style="color:${personColor};flex-shrink:0;"></ha-icon>
+              </div>` : ''}
+
+            ${detections.length ? html`
+              <div class="detection-row">
+                ${detections.map(d => html`
+                  <div class="detection-icon-wrap ${d.active ? 'active' : ''}">
+                    <ha-icon icon="${d.icon}"
+                      style="color:${d.active ? d.color : 'rgba(135,135,148,0.35)'};
+                             --mdc-icon-size:clamp(14px, 1.2vw, 22px);"></ha-icon>
+                  </div>`)}
               </div>` : ''}
           </div>
         </div>

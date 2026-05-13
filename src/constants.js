@@ -20,6 +20,14 @@ export const ROOM_TYPE_ICONS = {
   gym:            'mdi:dumbbell',
 };
 
+export const DETECTION_TYPES = {
+  person:  { icon: 'mdi:walk',            color: '#22d3ee' }, // cyan
+  dog:     { icon: 'mdi:dog',             color: '#fbbf24' }, // amber
+  cat:     { icon: 'mdi:cat',             color: '#c084fc' }, // purple
+  vehicle: { icon: 'mdi:car',             color: '#60a5fa' }, // blue
+  package: { icon: 'mdi:package-variant', color: '#fb923c' }, // orange
+};
+
 export const ROOM_TYPE_LABELS = {
   bedroom:        'Bedroom',
   master_bedroom: 'Master Bedroom',

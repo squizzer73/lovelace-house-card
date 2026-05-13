@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.5] — 2026-05-13
+
+### Added
+- **Camera detection indicators** — bind any number of `binary_sensor` detection entities to a room via the new **Camera Detections** section in the editor
+- Five built-in detection types with icons and colours: `person` (cyan `mdi:walk`), `dog` (amber `mdi:dog`), `cat` (purple `mdi:cat`), `vehicle` (blue `mdi:car`), `package` (orange `mdi:package-variant`)
+- **Flat view**: a row of small icons appears at the bottom of the room info card — dim when inactive, full colour with a pop-in animation when triggered; only shown if detections are configured on that room
+- **Axo view**: coloured dots at the bottom of the recessed info card per detection type — lit when active, dim circle when idle; only shown if detections are configured
+- Editor: **Camera Detections** section with Add / Remove buttons, type dropdown, and `binary_sensor` entity picker per detection
+
+---
+
 ## [0.2.4] — 2026-05-13
 
 ### Added

@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { ROOM_TYPE_LABELS } from './constants.js';
+import { ROOM_TYPE_LABELS, DETECTION_TYPES } from './constants.js';
 
 /**
  * House Card Editor
@@ -376,6 +376,60 @@ class HouseCardEditor extends LitElement {
         padding: 8px 0;
       }
 
+      .detection-entry {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .detection-entry ha-entity-picker,
+      .detection-entry .picker-loading {
+        flex: 1;
+      }
+
+      .detection-entry select {
+        width: 110px;
+        flex-shrink: 0;
+      }
+
+      .detection-remove {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--secondary-text-color);
+        font-size: 1.1rem;
+        padding: 2px 4px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+
+      .detection-remove:hover {
+        color: var(--error-color, #f44336);
+        background: rgba(244,67,54,0.1);
+      }
+
+      .add-detection-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: none;
+        border: 1px dashed var(--divider-color, rgba(255,255,255,0.2));
+        border-radius: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+        color: var(--secondary-text-color);
+        font-size: 0.82rem;
+        width: 100%;
+        margin-top: 4px;
+        transition: border-color 0.2s, color 0.2s;
+      }
+
+      .add-detection-btn:hover {
+        border-color: var(--primary-color, #4a90d9);
+        color: var(--primary-color, #4a90d9);
+      }
+
       .hint {
         font-size: 0.78rem;
         color: var(--secondary-text-color);
@@ -627,6 +681,55 @@ class HouseCardEditor extends LitElement {
     floors[this._activeFloorIdx] = {
       ...floor,
       rooms: (floor.rooms || []).map(r => r.id === roomId ? { ...r, name } : r),
+    };
+    this._config = { ...this._config, floors };
+    this._fireConfigChanged();
+    this.requestUpdate();
+  }
+
+  _updateDetection(roomId, index, field, value) {
+    const floor  = this._getActiveFloor();
+    const floors = [...(this._config.floors || [])];
+    floors[this._activeFloorIdx] = {
+      ...floor,
+      rooms: (floor.rooms || []).map(r => {
+        if (r.id !== roomId) return r;
+        const detections = [...(r.entities?.detections || [])];
+        detections[index] = { ...detections[index], [field]: value };
+        return { ...r, entities: { ...r.entities, detections } };
+      }),
+    };
+    this._config = { ...this._config, floors };
+    this._fireConfigChanged();
+    this.requestUpdate();
+  }
+
+  _addDetection(roomId) {
+    const floor  = this._getActiveFloor();
+    const floors = [...(this._config.floors || [])];
+    floors[this._activeFloorIdx] = {
+      ...floor,
+      rooms: (floor.rooms || []).map(r => {
+        if (r.id !== roomId) return r;
+        const detections = [...(r.entities?.detections || []), { entity: '', type: 'person' }];
+        return { ...r, entities: { ...r.entities, detections } };
+      }),
+    };
+    this._config = { ...this._config, floors };
+    this._fireConfigChanged();
+    this.requestUpdate();
+  }
+
+  _removeDetection(roomId, index) {
+    const floor  = this._getActiveFloor();
+    const floors = [...(this._config.floors || [])];
+    floors[this._activeFloorIdx] = {
+      ...floor,
+      rooms: (floor.rooms || []).map(r => {
+        if (r.id !== roomId) return r;
+        const detections = (r.entities?.detections || []).filter((_, i) => i !== index);
+        return { ...r, entities: { ...r.entities, detections } };
+      }),
     };
     this._config = { ...this._config, floors };
     this._fireConfigChanged();
@@ -899,6 +1002,37 @@ class HouseCardEditor extends LitElement {
             : html`<div class="picker-loading">Loading…</div>`}
         </div>
       `)}
+
+      <div class="section-title" style="margin-top:16px;margin-bottom:8px;">Camera Detections</div>
+
+      ${(room.entities?.detections || []).map((d, i) => html`
+        <div class="detection-entry">
+          <select
+            .value=${d.type || 'person'}
+            @change=${(e) => this._updateDetection(room.id, i, 'type', e.target.value)}
+          >
+            ${Object.entries(DETECTION_TYPES).map(([key]) => html`
+              <option value="${key}" ?selected=${d.type === key}>
+                ${key.charAt(0).toUpperCase() + key.slice(1)}
+              </option>`)}
+          </select>
+          ${customElements.get('ha-entity-picker')
+            ? html`<ha-entity-picker
+                .hass=${this.hass}
+                .value=${d.entity || ''}
+                .includeDomains=${['binary_sensor']}
+                allow-custom-entity
+                @value-changed=${(e) => this._updateDetection(room.id, i, 'entity', e.detail.value)}
+              ></ha-entity-picker>`
+            : html`<div class="picker-loading">Loading…</div>`}
+          <button class="detection-remove"
+            @click=${() => this._removeDetection(room.id, i)}
+            title="Remove">✕</button>
+        </div>`)}
+
+      <button class="add-detection-btn" @click=${() => this._addDetection(room.id)}>
+        + Add detection
+      </button>
     `;
   }
 
